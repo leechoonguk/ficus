@@ -1,0 +1,19 @@
+# Project-local OMP settings (harness ported from ~/Workspace/RL).
+# See `omp://settings.md` for the full catalog and precedence rules.
+
+# ── Post hooks: disabled per tool call, run once as the closing gate ──────────
+#
+# Every `.omp/hooks/post/check-*.ts` is a prerequisite of `make verify`
+# (check-makefiles enforces it), so running the same checks again after every
+# tool call would only cost time. pre/strict-* hooks stay live — they block, a
+# later check cannot.
+#
+# Id format: `hook:<type>:<tool>:<name>` (omp://extension-loading.md). The array
+# replaces the global setting rather than extending it. check-omp-hooks keeps it
+# in step with .omp/hooks/post/.
+disabledExtensions:
+  - hook:post:check-makefiles:check-makefiles.ts
+  - hook:post:check-omp-hooks:check-omp-hooks.ts
+  - hook:post:check-omp-rules:check-omp-rules.ts
+  - hook:post:check-omp-skills:check-omp-skills.ts
+  - hook:post:check-release:check-release.ts

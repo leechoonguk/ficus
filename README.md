@@ -99,17 +99,31 @@ make test
 make install    # ~/.local/bin(PREFIX=...로 변경)에 복사 + ficus setup (SHELLS="zsh bash"로 대상 선택)
 make uninstall  # ficus setup --remove + 바이너리와 캐시 삭제
 make dist       # 모든 플랫폼용 릴리스 파일을 dist/에 (GoReleaser 필요, 게시하지 않음)
+make verify     # 커밋 전 검사: 하네스 검사 + gofmt/vet + 테스트
 ```
 
 ### 릴리스 만들기
 
-`v`로 시작하는 태그를 올리면 GitHub Actions(`.github/workflows/release.yml`)가 GoReleaser(`.goreleaser.yaml`)로 6개 플랫폼(linux·darwin·windows × amd64·arm64)을 빌드해 GitHub Releases에 압축 파일, `.deb`/`.rpm`, `checksums.txt`, `install.sh`, `install.ps1`을 올립니다.
+버전은 git 태그(`vX.Y.Z`) 하나뿐이고, 태그는 `make release`로만 만듭니다.
 
 ```sh
-git tag v0.1.0 && git push origin v0.1.0
+make release bump=patch DRY_RUN=1   # 확인만: 다음 버전과 나갈 커밋을 보여 주고 아무것도 올리지 않음
+make release bump=patch             # patch(수정) | minor(기능 추가) | major(사용자가 바꿔야 할 변경)
 ```
 
-압축 파일 이름에는 버전이 없어서(`ficus_linux_amd64.tar.gz`) `releases/latest/download/...` 주소가 항상 최신 릴리스를 가리킵니다. 실행 파일에는 태그 버전이 들어갑니다(`ficus version`).
+`make release`는 `make verify` 뒤에 `scripts/release.sh`가 다음을 차례로 하고, 하나라도 실패하면 멈춥니다.
+
+1. `main`이고, 작업 트리가 깨끗하고, `origin/main`과 같고, 그 커밋의 CI(`ci` 워크플로)가 통과했는지 확인합니다(실행 중이면 기다림).
+2. 마지막 태그에서 다음 버전을 계산하고(`v0.1.0` + patch → `v0.1.1`) 나갈 커밋 목록을 보여 줍니다.
+3. 태그를 만들어 올리면 GitHub Actions(`release.yml`)가 GoReleaser(`.goreleaser.yaml`)로 6개 플랫폼을 빌드해 압축 파일, `.deb`/`.rpm`, `checksums.txt`, `install.sh`, `install.ps1`을 Releases에 올립니다(약 8분). 끝날 때까지 기다립니다.
+4. 올라간 파일이 빠짐없는지 확인합니다.
+5. `verify-release.yml`로 그 버전을 Ubuntu·macOS(`install.sh`), `.deb`, Windows(PowerShell 7과 5.1, `install.ps1`)에 실제로 설치해 셸 등록·후보·제거까지 확인합니다(약 3분).
+
+잘못된 릴리스는 `make unrelease v=vX.Y.Z`로 지웁니다(GitHub 릴리스와 태그 삭제, `releases/latest`는 이전 릴리스를 가리킴). 이미 공개된 버전 번호는 다시 쓰지 말고 다음 번호로 고쳐 냅니다. 릴리스 노트는 지난 태그 이후 커밋 제목으로 만들어지므로(`docs:`, `test:` 제외) 사용자가 읽을 수 있게 씁니다.
+
+압축 파일 이름에는 버전이 없어서(`ficus_linux_amd64.tar.gz`) `releases/latest/download/...` 주소가 항상 최신 릴리스를 가리킵니다. 사용자는 설치 때 쓴 한 줄을 다시 실행하면 업데이트됩니다.
+
+이 저장소에는 omp 하네스(`.omp/`)가 있습니다. 에이전트가 작업할 때 사용자 요청 없이 커밋·푸시·릴리스하거나, `git tag`·`gh release`로 `make release`를 우회하는 명령은 훅이 막습니다. 릴리스 설정, `scripts/release.sh`, 설치 스크립트, 워크플로가 같은 파일 이름과 저장소를 가리키는지는 `make check-release`(`make verify`에 포함)가 검사합니다. 명령 목록은 `make help`.
 
 ## 키
 

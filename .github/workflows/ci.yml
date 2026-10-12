@@ -26,3 +26,19 @@ jobs:
         run: go generate ./cmd/...
       - name: Test
         run: go test -tags release ./cmd/... ./internal/... ./shell/...
+
+  # The harness checks (.omp/hooks/post) and the release config: a release
+  # (make release) requires this workflow green for the commit it tags.
+  release-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Harness checks
+        run: make check-makefiles check-omp-hooks check-omp-rules check-omp-skills check-release
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check
