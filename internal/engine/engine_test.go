@@ -200,7 +200,14 @@ func TestNoColor(t *testing.T) {
 // Outside a UTF-8 locale every row is plain ASCII.
 func TestASCIIGlyphs(t *testing.T) {
 	gl := ResolveGlyphs("auto", 1, func(k string) string { return map[string]string{"LC_ALL": "C", "LANG": "en_US.UTF-8"}[k] })
-	if gl != GlyphsASCII {
+	switch {
+	case runtime.GOOS == "windows":
+		// No locale variables there: consoles are UTF-8.
+		if gl != GlyphsUnicode {
+			t.Fatalf("Windows ignores LC_ALL: got %+v", gl)
+		}
+		gl = ResolveGlyphs("on", 1, os.Getenv)
+	case gl != GlyphsASCII:
 		t.Fatalf("LC_ALL=C: got %+v", gl)
 	}
 	ms := []Match{{Item: Item{Value: strings.Repeat("y", 100), Description: strings.Repeat("d", 100)}, Positions: []int{0, 99}}}
@@ -335,6 +342,9 @@ esac
 // a quoted ~ is not expanded, a newline inside double quotes after a
 // backslash is a line continuation, and invalid UTF-8 must survive.
 func TestAcceptedWordsEvaluateToTheFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file names and shells")
+	}
 	home := t.TempDir()
 	work := t.TempDir()
 	names := map[string]string{ // typed word -> file name

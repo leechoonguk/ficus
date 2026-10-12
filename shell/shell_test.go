@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -15,6 +16,9 @@ import (
 // never print anything or cut the rest of the startup file short on an
 // unsupported version, and must load on a supported one.
 func TestIntegrationLoadsOrStaysSilent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the zsh and bash integrations are for Unix (Git Bash is not a target)")
+	}
 	type shellCase struct {
 		name, path, term string
 	}
@@ -67,7 +71,9 @@ func TestIntegrationLoadsOrStaysSilent(t *testing.T) {
 			case "zsh":
 				must(t, os.WriteFile(filepath.Join(dir, ".zshrc"), []byte(rc), 0o644))
 				probe = "whence -w _ficus_accept"
-				cmd = exec.Command(c.path, "-i", "-c", probe)
+				// -d: no system-wide startup files (Ubuntu's runs compinit,
+				// which complains without a terminal).
+				cmd = exec.Command(c.path, "-d", "-i", "-c", probe)
 				cmd.Env = append(os.Environ(), "ZDOTDIR="+dir)
 				supported = "autoload -Uz is-at-least; is-at-least 5.9"
 			}

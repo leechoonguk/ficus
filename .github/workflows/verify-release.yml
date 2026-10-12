@@ -1,0 +1,80 @@
+# Installs a published release the way users do and checks it works.
+# Run by hand after a release: gh workflow run verify-release.yml [-f version=vX.Y.Z]
+name: verify-release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release tag (empty = latest)
+        required: false
+
+jobs:
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: install.sh
+        env:
+          FICUS_VERSION: ${{ inputs.version }}
+          FICUS_SHELLS: bash
+        run: curl -fsSL https://github.com/leechoonguk/ficus/releases/latest/download/install.sh | sh
+      - name: Check
+        run: |
+          set -x
+          ~/.local/bin/ficus version
+          grep -q '>>> ficus >>>' ~/.bashrc
+          ~/.local/bin/ficus complete --shell bash --budget 0 -- 'git ch' | grep -q 'checkout'
+          ~/.local/bin/ficus setup --remove
+          ! grep -q '>>> ficus' ~/.bashrc
+
+  deb:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install the .deb
+        run: |
+          base=https://github.com/leechoonguk/ficus/releases/${{ inputs.version && format('download/{0}', inputs.version) || 'latest/download' }}
+          curl -fsSLO "$base/ficus_amd64.deb"
+          sudo apt-get install -y ./ficus_amd64.deb
+          ficus version
+          ficus setup --shells bash
+          ficus complete --shell bash --budget 0 -- 'git ch' | grep -q 'checkout'
+          ficus setup --remove
+          sudo apt-get remove -y ficus
+          ! command -v ficus
+
+  windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [pwsh, powershell]
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - name: install.ps1
+        env:
+          FICUS_VERSION: ${{ inputs.version }}
+        run: irm https://github.com/leechoonguk/ficus/releases/latest/download/install.ps1 | iex
+      - name: Check
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ficus = Join-Path $env:LOCALAPPDATA 'Programs\ficus\ficus.exe'
+          & $ficus version
+          & $ficus doctor
+          $profileText = Get-Content -Raw $PROFILE
+          if ($profileText -notmatch '>>> ficus >>>') { throw "profile not set up: $PROFILE" }
+          $env:FICUS_LBUFFER = 'Get-Ch'
+          $out = (& $ficus complete --shell pwsh --budget 0 --manual) -join "`n"
+          $out
+          $env:FICUS_LBUFFER = 'git ch'
+          $out = (& $ficus complete --shell pwsh --budget 0) -join "`n"
+          if ($out -notmatch 'checkout') { throw "no git completions: $out" }
+          # The profile loads in a new session without errors.
+          $r = & $env:ComSpec /c "${{ matrix.shell }} -NoLogo -Command `"`$Error.Count`" 2>&1"
+          "new session errors: $r"
+          & $ficus setup --remove
+          if ((Test-Path $PROFILE) -and ((Get-Content -Raw $PROFILE) -match 'ficus')) { throw 'profile not restored' }
