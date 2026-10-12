@@ -45,7 +45,7 @@ jobs:
           echo "$out" | grep -q "eckout"  # "ch" is highlighted: ch<SGR>eckout
           ficus setup --remove
           sudo apt-get remove -y ficus
-          ! command -v ficus
+          test ! -e /usr/bin/ficus  # not command -v: bash caches the path
 
   windows:
     runs-on: windows-latest
