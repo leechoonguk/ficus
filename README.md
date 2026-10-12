@@ -2,13 +2,17 @@
 
 Fig 스타일의 **입력 중 자동완성 메뉴**를 터미널 안에 그리는 도구입니다. 별도 GUI 창 없이 셸 자체 기능으로 동작하므로 macOS·Linux·Windows, SSH, tmux 어디서나 같은 방식으로 씁니다.
 
-```
-~/project $ git ch
- cherry            Find commits yet to be applied to upstream
- checkout          Switch branches or restore working tree files
- check-attr        Display gitattributes information
- 1/26
-```
+![ficus 데모: git 하위 명령과 브랜치 메뉴, ls 플래그, Ctrl-Space 선택기](docs/demo.gif)
+
+위 화면 (zsh, 24초):
+
+- `git ch`를 치면 설명이 붙은 하위 명령 메뉴가 뜨고, 첫 항목이 하이라이트됩니다.
+- ↓로 `checkout`을 고르고 Tab을 치면, 다음 단어의 브랜치·태그 메뉴가 그룹별로 열립니다.
+- `fe`를 치고 Enter를 치면 `feature/login`으로 완성되고, 한 번 더 Enter를 치면 실행됩니다.
+- `ls -`는 플래그와 설명을 보여 줍니다.
+- `cat ` 뒤에 Ctrl-Space를 치면 파일 미리보기가 있는 퍼지 선택기가 열립니다.
+
+녹화는 `docs/demo.tape`([VHS](https://github.com/charmbracelet/vhs))로 다시 만들 수 있습니다.
 
 | 셸 | 최소 버전 | 메뉴 표시 방식 |
 |---|---|---|
