@@ -18,7 +18,7 @@ GO_DIRS := cmd internal shell
 GENERATED  := $(CARAPACE)/pkg/actions/actions_generated.go
 SUBMODULES := $(CARAPACE)/go.mod third_party/fzf/go.mod
 
-.PHONY: all help build generate test lint verify dist install uninstall clean \
+.PHONY: all help build generate test lint verify dist demo install uninstall clean \
 	check-makefiles check-omp-hooks check-omp-rules check-omp-skills check-release check-english hook-report \
 	commit push release unrelease
 
@@ -54,6 +54,13 @@ verify: check-makefiles check-omp-hooks check-omp-rules check-omp-skills check-r
 # (.goreleaser.yaml), without publishing.
 dist: ## Build every release file into dist/ without publishing (needs GoReleaser)
 	goreleaser release --snapshot --clean
+
+# The README's recording: a scripted zsh session (docs/demo.tape) in a throwaway
+# repository under /tmp (docs/demo-setup.sh), never the user's own startup files.
+demo: build ## Re-record docs/demo.gif from docs/demo.tape (needs vhs: brew install vhs)
+	@command -v vhs >/dev/null 2>&1 || { echo 'make demo needs vhs: brew install vhs' >&2; exit 1; }
+	docs/demo-setup.sh "$(CURDIR)/bin/ficus"
+	vhs docs/demo.tape
 
 install: build ## Copy both binaries to $(PREFIX)/bin and run ficus setup (SHELLS="zsh bash" to choose)
 	install -d $(PREFIX)/bin

@@ -12,7 +12,7 @@ The recording above (zsh, 24 seconds):
 - `ls -` lists the flags with their descriptions.
 - Ctrl-Space after `cat ` opens a fuzzy picker with a file preview.
 
-The recording is regenerated from `docs/demo.tape` with [VHS](https://github.com/charmbracelet/vhs).
+The recording is regenerated from `docs/demo.tape` with [VHS](https://github.com/charmbracelet/vhs): `make demo` (needs `brew install vhs`).
 
 | Shell | Minimum version | How the menu is drawn |
 |---|---|---|

@@ -43,6 +43,11 @@ alwaysApply: false
    install.ps1 in PowerShell 7 and Windows PowerShell 5.1 — install, setup,
    completion, removal.
 
+Before releasing a change to how the menu looks or behaves, re-record the README's
+recording with `make demo` and commit it: the release prints a note (it does not
+block) when the drawing code (`shell/`, `render.go`, `theme.go`, `output.go`,
+`docs/demo.tape`) changed since the last tag and `docs/demo.gif` did not.
+
 `DRY_RUN=1` runs every check of step 2 and prints the version and commits, without
 tagging. It publishes nothing, so it needs no release request — run it first when unsure.
 

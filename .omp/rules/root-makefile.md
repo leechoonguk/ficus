@@ -24,6 +24,7 @@ Every command an agent or a human runs is a target. Machine-checked by
 | `make dist` | Every release file into `dist/` without publishing (GoReleaser snapshot) |
 | `make install` | Copy both binaries to `$(PREFIX)/bin` (default `~/.local/bin`) and run `ficus setup` (`SHELLS="zsh bash"`) |
 | `make uninstall` | `ficus setup --remove`, delete the binaries and the candidate cache |
+| `make demo` | Re-record `docs/demo.gif` from `docs/demo.tape` in a throwaway repository under `/tmp` (needs vhs) |
 | `make clean` | Remove `bin/` and `dist/` |
 | `make check-makefiles` | This table, `.PHONY`, verify membership |
 | `make check-omp-hooks` | Hook shapes, imports, `disabledExtensions` (rule://omp-conventions) |

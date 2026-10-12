@@ -19,7 +19,23 @@ writes and a publishing `goreleaser release`; `strict-publish-consent` blocks
    (`git log --oneline $(git describe --tags --abbrev=0)..HEAD`): `patch` fixes,
    `minor` new behaviour or settings, `major` a user must change something. If the
    user did not say, propose one and why — do not guess silently.
-3. Dry run — every check, no tag:
+3. The README's recording (`docs/demo.gif`) must match the menu users will get.
+   If what the menu shows or how keys behave changed since the last tag, re-record
+   it (needs vhs; about 40 s; a throwaway repository under /tmp, never the user's
+   own startup files):
+
+```bash
+git diff --stat $(git describe --tags --abbrev=0)..HEAD -- shell internal/engine/render.go internal/engine/theme.go internal/engine/output.go
+make demo
+```
+
+   Look at the result before committing it — extract frames and view them:
+   `ffmpeg -ss 5 -i docs/demo.gif -frames:v 1 /tmp/demo-5s.png` (every few
+   seconds). If a scene no longer matches the keys (a new default, a changed key),
+   fix `docs/demo.tape` and record again. Commit the recording (`commit` skill) so
+   it is part of the released commit. The dry run below prints a note when the
+   drawing code changed and the recording did not.
+4. Dry run — every check, no tag:
 
 ```bash
 make release bump=patch DRY_RUN=1

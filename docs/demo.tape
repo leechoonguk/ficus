@@ -1,5 +1,5 @@
-# ficus demo for README.md. Regenerate (needs vhs: brew install vhs):
-#   make build && docs/demo-setup.sh "$PWD/bin/ficus" && vhs docs/demo.tape
+# ficus demo for README.md. Regenerate with `make demo` (needs vhs: brew install vhs),
+# which builds ficus, runs docs/demo-setup.sh and records this tape.
 Output docs/demo.gif
 
 Set Shell "zsh"

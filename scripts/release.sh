@@ -107,6 +107,14 @@ else
 	git --no-pager log --oneline --no-decorate "$last..HEAD"
 fi
 
+# The README's recording is re-recorded by hand (make demo): note, do not block,
+# when the code that draws the menu changed but the recording did not.
+ui="shell internal/engine/render.go internal/engine/theme.go internal/engine/output.go docs/demo.tape"
+if [ "$last" != v0.0.0 ] && ! git diff --quiet "$last" HEAD -- $ui && git diff --quiet "$last" HEAD -- docs/demo.gif; then
+	say "note: how the menu is drawn changed since $last, docs/demo.gif did not;"
+	say "      if the menu looks different now, run make demo and commit the recording first"
+fi
+
 if [ "${DRY_RUN:-}" = 1 ]; then
 	say "dry run: would tag $next on $short and publish it"
 	exit 0
