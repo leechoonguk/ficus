@@ -1,0 +1,83 @@
+# Release build: `git tag vX.Y.Z && git push --tags` runs this in GitHub
+# Actions (.github/workflows/release.yml). Local check without publishing:
+#   goreleaser release --snapshot --clean
+version: 2
+
+project_name: ficus
+
+before:
+  hooks:
+    - git submodule update --init --depth 1
+    # carapace-bin's completer registry is generated (and git-ignored).
+    - sh -c "cd third_party/carapace-bin && go generate ./cmd/..."
+
+builds:
+  - &build
+    id: ficus
+    main: ./cmd/ficus
+    binary: ficus
+    env: [CGO_ENABLED=0]
+    flags: [-tags=release, -trimpath]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+  - <<: *build
+    id: ficus-carapace
+    main: ./cmd/ficus-carapace
+    binary: ficus-carapace
+    ldflags: ["-s -w"]
+
+archives:
+  # No version in the name: releases/latest/download/<name> stays valid, so
+  # install.sh and install.ps1 never need to look the version up.
+  - name_template: "ficus_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - src: third_party/carapace-bin/LICENSE
+        dst: licenses/carapace-bin.LICENSE
+      - src: third_party/fzf/LICENSE
+        dst: licenses/fzf.LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+nfpms:
+  - package_name: ficus
+    file_name_template: "{{ .PackageName }}_{{ .Arch }}"
+    vendor: leechoonguk
+    homepage: https://github.com/leechoonguk/ficus
+    maintainer: leechoonguk <leechoonguk@users.noreply.github.com>
+    description: As-you-type completion menu for zsh, bash and PowerShell, drawn in the terminal.
+    license: MIT
+    formats: [deb, rpm]
+    bindir: /usr/bin
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/ficus/copyright
+      - src: third_party/carapace-bin/LICENSE
+        dst: /usr/share/doc/ficus/licenses/carapace-bin.LICENSE
+      - src: third_party/fzf/LICENSE
+        dst: /usr/share/doc/ficus/licenses/fzf.LICENSE
+    scripts:
+      postinstall: packaging/postinstall.sh
+
+release:
+  github:
+    owner: leechoonguk
+    name: ficus
+  extra_files:
+    - glob: install.sh
+    - glob: install.ps1
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  sort: asc
+  filters:
+    exclude: ["^docs:", "^test:"]

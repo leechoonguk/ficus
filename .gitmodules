@@ -1,0 +1,9 @@
+[submodule "third_party/carapace-bin"]
+	path = third_party/carapace-bin
+	url = https://github.com/carapace-sh/carapace-bin.git
+[submodule "third_party/fzf"]
+	path = third_party/fzf
+	url = https://github.com/junegunn/fzf.git
+[submodule "third_party/fzf-tab"]
+	path = third_party/fzf-tab
+	url = https://github.com/Aloxaf/fzf-tab.git
