@@ -9,8 +9,9 @@
  * The rule is the **current** user turn, not the session: a request to commit
  * three turns ago, followed by other instructions, is not permission to publish
  * now. And a turn that names the verb while forbidding it is not permission
- * either - the message that created this gate reads "커밋하고 푸쉬 하지말도록",
- * which a word match alone would have read as consent.
+ * either - the (Korean) message that created this gate asked to commit and, in
+ * the same sentence, not to push, which a word match alone would have read as
+ * consent.
  */
 
 /** A session entry as `sessionManager.getBranch()` yields it. */
@@ -26,14 +27,14 @@ const CONSENT = /커밋|푸시|푸쉬|배포|올려|\bcommit\b|\bpush\b|\bpublis
 
 /**
  * Release verbs. A release is a separate, larger act than a push: a version tag
- * builds and publishes binaries every user downloads. "커밋해" is not a request
- * for one, so a release needs its own words in the current turn.
+ * builds and publishes binaries every user downloads. A request to commit is not
+ * a request for one, so a release needs its own words in the current turn.
  */
 const RELEASE_CONSENT = /릴리스|릴리즈|출시|배포|버전\s*(?:을|를)?\s*(?:올|업)|태그|\brelease\b|\btag\b/i;
 
 /**
- * Negation in the same message. Korean puts it after the verb (`하지마`, `말고`),
- * English before it (`don't push`), so this is a message-level veto rather than a
+ * Negation in the same message. Korean puts it after the verb, English before it
+ * (`don't push`), so this is a message-level veto rather than a
  * neighbourhood test: a turn that both asks and forbids is ambiguous, and a
  * blocked publish is the cheap side of that ambiguity.
  */

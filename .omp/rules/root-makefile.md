@@ -20,7 +20,7 @@ Every command an agent or a human runs is a target. Machine-checked by
 | `make build` | `bin/ficus`, `bin/ficus-carapace` for this machine, version from `git describe` |
 | `make test` | Go tests: engine, config, setup, termq, shell integrations |
 | `make lint` | gofmt (no unformatted file) + `go vet` |
-| `make verify` | The gate: check-makefiles + check-omp-hooks + check-omp-rules + check-omp-skills + check-release + lint + test |
+| `make verify` | The gate: check-makefiles + check-omp-hooks + check-omp-rules + check-omp-skills + check-release + check-english + lint + test |
 | `make dist` | Every release file into `dist/` without publishing (GoReleaser snapshot) |
 | `make install` | Copy both binaries to `$(PREFIX)/bin` (default `~/.local/bin`) and run `ficus setup` (`SHELLS="zsh bash"`) |
 | `make uninstall` | `ficus setup --remove`, delete the binaries and the candidate cache |
@@ -30,6 +30,7 @@ Every command an agent or a human runs is a target. Machine-checked by
 | `make check-omp-rules` | Rule frontmatter and check→rule mapping |
 | `make check-omp-skills` | Skill frontmatter and `enforced-by` |
 | `make check-release` | Release config, release script, installers, workflows agree (rule://release) |
+| `make check-english` | Documentation and code comments are English (rule://english) |
 | `make hook-report` | What the post hooks cost and which never warned |
 | `make commit` | `verify`, then commit the whole worktree (`m=` or `f=`) — only when asked |
 | `make push` | `verify`, then push the current branch — only when asked |

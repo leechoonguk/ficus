@@ -19,7 +19,7 @@ GENERATED  := $(CARAPACE)/pkg/actions/actions_generated.go
 SUBMODULES := $(CARAPACE)/go.mod third_party/fzf/go.mod
 
 .PHONY: all help build generate test lint verify dist install uninstall clean \
-	check-makefiles check-omp-hooks check-omp-rules check-omp-skills check-release hook-report \
+	check-makefiles check-omp-hooks check-omp-rules check-omp-skills check-release check-english hook-report \
 	commit push release unrelease
 
 all: build ## Build bin/ficus and bin/ficus-carapace (same as make build)
@@ -48,7 +48,7 @@ lint: $(GENERATED) ## gofmt (no unformatted file) and go vet
 
 # Harness checks first: they read the tree in milliseconds, so a wiring slip is
 # reported before the Go build and tests run.
-verify: check-makefiles check-omp-hooks check-omp-rules check-omp-skills check-release lint test ## The gate: harness checks, lint, tests (fail-fast)
+verify: check-makefiles check-omp-hooks check-omp-rules check-omp-skills check-release check-english lint test ## The gate: harness checks, lint, tests (fail-fast)
 
 # Release files for every platform in dist/, as a tag push publishes them
 # (.goreleaser.yaml), without publishing.
@@ -91,6 +91,9 @@ check-omp-skills: ## Check skills are discoverable and cite real hooks
 
 check-release: ## Check release config, release script, installers and workflows name the same files
 	node .omp/hooks/post/check-release.ts
+
+check-english: ## Check documentation and code comments are English (proper nouns: rule://english)
+	node .omp/hooks/post/check-english.ts
 
 hook-report: ## Report what the post hooks cost and which never warned
 	node .omp/hooks/lib/hook-metrics.ts

@@ -2,8 +2,9 @@ import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 // @ts-expect-error — Node builtin, not project-compiled
 import { spawnSync } from "node:child_process";
 
-// 앵커에 인용부호(`"'`)와 백틱을 포함한다 — eval 본문에서는 명령이 문자열 리터럴 안에 있어
-// (execSync("git push …")) 셸 구분자만으로는 시작점을 못 잡는다(실측: eval 채널 무차단).
+// The anchor includes quotes (`"'`) and backticks: in an eval body the command sits
+// inside a string literal (execSync("git push …")), where shell separators alone do
+// not mark its start (measured: the eval channel went unblocked).
 const GIT_PUBLISH = /(?:^|[&|;()"'`]\s*)(?:sudo\s+)?git(?:\s+-\S+(?:\s+\S+)?)*\s+(?:commit|push)\b/;
 const GIT_COMMIT = /(?:^|[&|;()]\s*)(?:sudo\s+)?git(?:\s+-\S+(?:\s+\S+)?)*\s+commit\b/;
 
@@ -20,15 +21,15 @@ const GIT_COMMIT = /(?:^|[&|;()]\s*)(?:sudo\s+)?git(?:\s+-\S+(?:\s+\S+)?)*\s+com
  * cannot even type-check, with a green verify behind it.
  */
 export default function strictVerifiedGit(pi: ExtensionAPI): void {
-  // ctx-ok: 커밋 검증은 작업 트리 경로(ctx.cwd)가 필요하다 — event 에 없고, 단순 문자열 읽기라 던질 수 없다.
+  // ctx-ok: verifying a commit needs the worktree path (ctx.cwd) — not on the event; a plain string read cannot throw.
   pi.on("tool_call", (event: { toolName?: string; input?: Record<string, unknown> }, ctx: { cwd: string }) => {
-    // channel: bash + eval — eval 본문의 execSync("git push") 는 bash 필터를 그대로 지나친다.
+    // channel: bash + eval — execSync("git push") in an eval body passes a bash-only filter.
     if (event.toolName !== "bash" && event.toolName !== "eval") return;
 
     const command = String(event.input?.command ?? event.input?.code ?? "");
-    // eval 의 argv 리스트형(subprocess.run(["git","commit",…]))은 "git commit" 이 연속 문자열로
-    // 존재하지 않는다 — strict-command-routing 과 같은 판정: 실행 함수와 대상 토큰이 같은 본문에
-    // 함께 있으면 발행 시도로 본다.
+    // An argv list in eval (subprocess.run(["git","commit",…])) never contains "git commit"
+    // as one string — so, as in strict-command-routing, an exec function together with the
+    // target tokens in the same body counts as a publish attempt.
     const evalPublish = event.toolName === "eval"
       && /\b(execSync|exec|spawnSync|spawn|subprocess\.(?:run|call|check_call|Popen)|os\.system|popen)\b/.test(command)
       && /["'`]git["'`]/.test(command)
@@ -40,7 +41,7 @@ export default function strictVerifiedGit(pi: ExtensionAPI): void {
       const mismatch = describeUncommittedWork(ctx.cwd);
       if (mismatch !== null) return { block: true, reason: mismatch };
     }
-    // ficus 는 단일 프로젝트라 게이트의 루트가 곧 작업 디렉터리다.
+    // ficus is a single project: the gate's root is the working directory.
 
     const result = spawnSync("make", ["verify"], {
       cwd: ctx.cwd,

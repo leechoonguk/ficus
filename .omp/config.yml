@@ -17,3 +17,4 @@ disabledExtensions:
   - hook:post:check-omp-rules:check-omp-rules.ts
   - hook:post:check-omp-skills:check-omp-skills.ts
   - hook:post:check-release:check-release.ts
+  - hook:post:check-english:check-english.ts

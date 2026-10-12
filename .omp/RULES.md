@@ -16,6 +16,10 @@ Never modify `.omp/` files without explicit user request. When modifying the har
 
 ## Workflow
 
+- Documentation and code comments are English (rule://english; `check-english` in
+  `make verify`). A proper noun that must keep its script goes on that rule's
+  allowed list.
+
 - Run `make verify` from the project root before declaring work done. Never truncate
   gate output with `head`/`tail`/`grep` — a pipe returns the filter's exit code.
 - An additive task must not wipe existing code: targeted edits over full-file

@@ -37,7 +37,7 @@ jobs:
         with:
           node-version: 24
       - name: Harness checks
-        run: make check-makefiles check-omp-hooks check-omp-rules check-omp-skills check-release
+        run: make check-makefiles check-omp-hooks check-omp-rules check-omp-skills check-release check-english
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"

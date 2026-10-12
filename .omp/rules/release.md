@@ -14,7 +14,7 @@ alwaysApply: false
 
 | Gate | Hook | Blocks |
 |---|---|---|
-| Consent | `strict-publish-consent.ts` | `make release` / `make unrelease` when the current user turn does not ask for a release (릴리스, 배포, 태그, release, tag …), or asks and forbids it; `make release … DRY_RUN=1` is exempt |
+| Consent | `strict-publish-consent.ts` | `make release` / `make unrelease` when the current user turn does not ask for a release (release words in Korean or English: `RELEASE_CONSENT` in hook-publish-consent.ts), or asks and forbids it; `make release … DRY_RUN=1` is exempt |
 | Route | `strict-release-route.ts` | raw `git tag` writes, pushing a version tag, `gh release create/delete/edit/upload`, `gh workflow run release.yml`, publishing `goreleaser release` |
 | Consistency | `check-release.ts` (in `make verify`) | the release files, `scripts/release.sh`, the installers and the workflows naming different files or repositories |
 
