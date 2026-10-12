@@ -27,7 +27,7 @@ jobs:
           ~/.local/bin/ficus version
           grep -q '>>> ficus >>>' ~/.bashrc
           out=$(~/.local/bin/ficus complete --shell bash --budget 0 -- 'git ch'); echo "$out" | head -3
-          echo "$out" | grep -q checkout
+          echo "$out" | grep -q "eckout"  # "ch" is highlighted: ch<SGR>eckout
           ~/.local/bin/ficus setup --remove
           ! grep -q '>>> ficus' ~/.bashrc
 
@@ -42,7 +42,7 @@ jobs:
           ficus version
           ficus setup --shells bash
           out=$(ficus complete --shell bash --budget 0 -- 'git ch'); echo "$out" | head -3
-          echo "$out" | grep -q checkout
+          echo "$out" | grep -q "eckout"  # "ch" is highlighted: ch<SGR>eckout
           ficus setup --remove
           sudo apt-get remove -y ficus
           ! command -v ficus
@@ -75,7 +75,7 @@ jobs:
           $env:FICUS_LBUFFER = 'git ch'
           $out = (& $ficus complete --shell pwsh --budget 0) -join "`n"
           $out
-          if ($out -notmatch 'checkout') { throw "no git completions: $out" }
+          if ($out -notmatch 'eckout') { throw "no git completions: $out" }  # "ch" is highlighted
           # The profile loads in a new session without errors.
           $r = & $env:ComSpec /c "${{ matrix.shell }} -NoLogo -Command `"`$Error.Count`" 2>&1"
           "new session errors: $r"
