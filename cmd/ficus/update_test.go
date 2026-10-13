@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -115,7 +116,8 @@ func TestUpdate(t *testing.T) {
 		if got := contents(t, dir, "ficus-carapace"); got != "new carapace" {
 			t.Errorf("ficus-carapace = %q", got)
 		}
-		if fi, _ := os.Stat(filepath.Join(dir, "ficus")); fi.Mode().Perm()&0o111 == 0 {
+		// Windows file systems have no execute bit to check.
+		if fi, _ := os.Stat(filepath.Join(dir, "ficus")); runtime.GOOS != "windows" && fi.Mode().Perm()&0o111 == 0 {
 			t.Errorf("ficus is not executable: %v", fi.Mode())
 		}
 		if _, err := os.Stat(filepath.Join(dir, "README.md")); err == nil {
