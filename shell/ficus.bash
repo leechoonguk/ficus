@@ -32,6 +32,7 @@ __ficus_picked=0      # selection moved with Up/Down
 __ficus_presel=0      # the engine highlights the best match: Enter takes it
 __ficus_held=0        # the engine hides a menu Tab would open
 __ficus_manual=0      # Tab opened the menu: show it in full while typing
+__ficus_off=0         # Esc/Ctrl-G turned the menu off for this line (Tab opens it)
 __ficus_move=''       # next-group | prev-group for the next query
 __ficus_shown_lines=() __ficus_shown_endrow=0 __ficus_shown_cols=0  # frame on screen
 __ficus_drawn=0       # menu rows currently on screen
@@ -130,7 +131,7 @@ __ficus_paint() {
   fi
   if __ficus_menu_valid; then
     __ficus_bind_menu_keys
-  elif (( __ficus_held || ! __ficus_cfg_auto )) && [[ -n $READLINE_LINE ]]; then
+  elif (( __ficus_held || __ficus_off || ! __ficus_cfg_auto )) && [[ -n $READLINE_LINE ]]; then
     __ficus_bind_accept_only  # Tab opens the menu
   else
     __ficus_bind_plain_keys
@@ -166,11 +167,12 @@ __ficus_close() {
 }
 
 # Refresh after an edit. The menu follows the cursor only at the line end,
-# and with auto_popup off only once Tab opened it (__ficus_manual).
+# and with auto_popup off, or after Esc/Ctrl-G turned it off for this line,
+# only once Tab opened it (__ficus_manual).
 __ficus_update() {
   __ficus_sel=0 __ficus_picked=0
   [[ -n $READLINE_LINE ]] || __ficus_manual=0
-  if [[ -z $READLINE_LINE ]] || ! __ficus_at_end || (( ! __ficus_cfg_auto && ! __ficus_manual )); then
+  if [[ -z $READLINE_LINE ]] || ! __ficus_at_end || (( (! __ficus_cfg_auto || __ficus_off) && ! __ficus_manual )); then
     __ficus_close
     return
   fi
@@ -212,7 +214,9 @@ __ficus_accept() {
 # preselected), Up the last one.
 __ficus_next() { (( __ficus_picked || __ficus_presel ? __ficus_sel++ : (__ficus_sel = 0) )); __ficus_picked=1; __ficus_query; __ficus_paint; }
 __ficus_prev() { (( __ficus_picked || __ficus_presel ? __ficus_sel-- : (__ficus_sel = -1) )); __ficus_picked=1; __ficus_query; __ficus_paint; }
-__ficus_dismiss() { __ficus_close; }
+# Esc / Ctrl-G turn the menu off for the rest of this line, as Fig's hide
+# does: typing no longer opens it, Tab does (and it then follows typing).
+__ficus_dismiss() { __ficus_off=1 __ficus_manual=0; __ficus_close; }
 # Jump to the first item of the next/previous group (the engine knows them).
 __ficus_group() { __ficus_move=$1; __ficus_query; __ficus_move= __ficus_picked=1; __ficus_paint; }
 __ficus_group_next() { __ficus_group next-group; }
@@ -268,7 +272,7 @@ __ficus_pick() {
 __ficus_prompt() {
   local status=$?
   (( __ficus_drawn )) && printf '\r\e[J' >/dev/tty
-  __ficus_n=0 __ficus_sel=0 __ficus_rows=0 __ficus_drawn=0 __ficus_measured=0 __ficus_held=0 __ficus_manual=0
+  __ficus_n=0 __ficus_sel=0 __ficus_rows=0 __ficus_drawn=0 __ficus_measured=0 __ficus_held=0 __ficus_manual=0 __ficus_off=0
   __ficus_bind_plain_keys
   (( __ficus_armed )) || __ficus_arm
   return $status
@@ -358,8 +362,15 @@ __ficus_add_keys t __ficus_accept "${__ficus_key_accept[@]}"
 __ficus_add_keys g __ficus_dismiss "${__ficus_key_dismiss[@]}"
 __ficus_add_keys n __ficus_group_next "${__ficus_key_next_group[@]}"
 __ficus_add_keys p __ficus_group_prev "${__ficus_key_prev_group[@]}"
+# Esc also dismisses, in emacs mode only: in vi insert mode it enters command
+# mode. A lone Esc shadows the Alt-key and arrow sequences that start with it;
+# readline tells them apart by keyseq-timeout (lowered below).
+__ficus_menu_key[x]='\e' __ficus_menu_act[x]=__ficus_dismiss
+declare -A __ficus_emacs_only=( [x]=1 )
+__ficus_skip() { [[ $1 != emacs && -n ${__ficus_emacs_only[$2]-} ]]; }  # keymap id
 for __ficus_km in "${__ficus_kms[@]}"; do
   for __ficus_id in "${!__ficus_menu_key[@]}"; do
+    __ficus_skip "$__ficus_km" "$__ficus_id" && continue
     __ficus_save "$__ficus_km" "${__ficus_menu_key[$__ficus_id]}"
     bind -m "$__ficus_km" -x "\"\\C-x\\C-]1$__ficus_id\": __ficus_step $__ficus_id"
   done
@@ -370,10 +381,10 @@ __ficus_step() {
     ok=1
     # Up belongs to history until Down picked an item (up_arrow = history).
     [[ $act == __ficus_prev && $__ficus_cfg_up != menu ]] && (( ! __ficus_picked )) && ok=0
-  elif [[ $act == __ficus_accept && -n $READLINE_LINE ]] && (( __ficus_held || ! __ficus_cfg_auto )) && __ficus_at_end; then
-    # The menu was held back (short command word) or auto_popup is off:
-    # Tab opens it, and it then follows typing.
-    __ficus_manual=1 __ficus_sel=0 __ficus_picked=0
+  elif [[ $act == __ficus_accept && -n $READLINE_LINE ]] && (( __ficus_held || __ficus_off || ! __ficus_cfg_auto )) && __ficus_at_end; then
+    # The menu was held back (short command word), turned off for this line
+    # (Esc/Ctrl-G) or auto_popup is off: Tab opens it, and it then follows typing.
+    __ficus_manual=1 __ficus_off=0 __ficus_sel=0 __ficus_picked=0
     __ficus_query
     if (( __ficus_n )); then
       for km in "${__ficus_kms[@]}"; do bind -m "$km" -x "\"\\C-x\\C-]2$id\": :"; done
@@ -397,9 +408,11 @@ __ficus_bind_menu_keys() {
   local km id
   for km in "${__ficus_kms[@]}"; do
     for id in "${!__ficus_menu_key[@]}"; do
+      __ficus_skip "$km" "$id" && continue
       bind -m "$km" "\"${__ficus_menu_key[$id]}\": \"\\C-x\\C-]1$id\\C-x\\C-]2$id\""
     done
   done
+  __ficus_kt_short
   __ficus_keys=menu
 }
 # Only the accept key (Tab) acts: it opens a held menu.
@@ -420,11 +433,23 @@ __ficus_bind_plain_keys() {
   local km id
   for km in "${__ficus_kms[@]}"; do
     for id in "${!__ficus_menu_key[@]}"; do
+      __ficus_skip "$km" "$id" && continue
       __ficus_bind_action "$km" "${__ficus_menu_key[$id]}" "${__ficus_orig[$km|${__ficus_menu_key[$id]}]}"
     done
   done
+  __ficus_kt_restore
   __ficus_keys=plain
 }
+
+# A lone Esc bound next to Alt-key sequences waits keyseq-timeout (500 ms by
+# default) to tell them apart. While the menu is open the wait is 100 ms, so
+# Esc dismisses at once; with the menu closed the user's value is back. Once
+# bound, readline never forgets "\e" entirely: Esc then a letter typed as two
+# keys is Meta-letter only within keyseq-timeout (Alt-letter is unaffected).
+# bash before 4.3 has no keyseq-timeout and skips this.
+__ficus_kt_user=$(bind -v 2>/dev/null | sed -n 's/^set keyseq-timeout //p')
+__ficus_kt_short() { (( ${__ficus_kt_user:-0} > 100 )) && bind 'set keyseq-timeout 100'; return 0; }
+__ficus_kt_restore() { (( ${__ficus_kt_user:-0} > 100 )) && bind "set keyseq-timeout $__ficus_kt_user"; return 0; }
 
 # Readline re-binds the tty erase/kill/werase characters on every line unless
 # told not to, which would silently drop the Backspace binding.

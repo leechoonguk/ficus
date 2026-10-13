@@ -120,12 +120,12 @@ func ResolveTheme(name, colorSetting string, colors int, getenv func(string) str
 
 // Glyphs are the decorative characters, in Unicode or ASCII.
 type Glyphs struct {
-	Ellipsis, Rule, Sep string
+	Ellipsis, Rule, Sep, Run string
 }
 
 var (
-	GlyphsUnicode = Glyphs{Ellipsis: "…", Rule: "─", Sep: "·"}
-	GlyphsASCII   = Glyphs{Ellipsis: "...", Rule: "-", Sep: "|"}
+	GlyphsUnicode = Glyphs{Ellipsis: "…", Rule: "─", Sep: "·", Run: "↪"}
+	GlyphsASCII   = Glyphs{Ellipsis: "...", Rule: "-", Sep: "|", Run: "->"}
 )
 
 // ResolveGlyphs chooses ASCII when asked to (on), or (auto) when the locale

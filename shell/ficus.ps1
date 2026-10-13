@@ -26,6 +26,7 @@ $__ficus.Bin       = @FICUS@
 $__ficus.Colors    = 256      # terminfo is not available; consoles with VT do 256
 $__ficus.Held      = $false   # the engine hides a menu Tab would open
 $__ficus.Manual    = $false   # Tab opened the menu: show it in full while typing
+$__ficus.Off       = $false   # Esc/Ctrl-G turned the menu off for this line (Tab opens it)
 # A screen reader cannot follow a menu painted below the line: only Tab
 # opens it, and it carries no colors.
 $__ficusRLOption = Get-PSReadLineOption
@@ -333,7 +334,7 @@ $__ficusInsertBody = @'
     $__ficus.Sel = 0; $__ficus.Picked = $false
     # More keys already waiting (a paste, fast typing): the last one
     # refreshes. With auto_popup off only a menu Tab opened follows typing.
-    if ([Console]::KeyAvailable -or -not ($__ficus.Auto -or $__ficus.Manual)) { __FicusClose } else { __FicusRefresh }
+    if ([Console]::KeyAvailable -or -not (($__ficus.Auto -and -not $__ficus.Off) -or $__ficus.Manual)) { __FicusClose } else { __FicusRefresh }
 '@
 foreach ($i in 33..126) { __FicusBind ([string][char]$i) $__ficusInsertBody 'insert' }
 __FicusBind 'Spacebar' $__ficusInsertBody 'insert'
@@ -342,7 +343,7 @@ __FicusBind 'Backspace' @'
     if ($__ficus.Orig[$chord]) { __FicusFallthrough $chord $key $arg }
     else { [Microsoft.PowerShell.PSConsoleReadLine]::BackwardDeleteChar($key, $arg) }
     $__ficus.Sel = 0; $__ficus.Picked = $false
-    if ([Console]::KeyAvailable -or -not ($__ficus.Auto -or $__ficus.Manual)) { __FicusClose } else { __FicusRefresh }
+    if ([Console]::KeyAvailable -or -not (($__ficus.Auto -and -not $__ficus.Off) -or $__ficus.Manual)) { __FicusClose } else { __FicusRefresh }
 '@ 'backspace'
 
 # With the menu held back (a short command word) or auto_popup off, the
@@ -350,8 +351,8 @@ __FicusBind 'Backspace' @'
 $__ficusAcceptBody = @'
     $line, $cursor = __FicusState
     if (-not (__FicusMenuOpen)) {
-        if (($__ficus.Held -or -not $__ficus.Auto) -and $line -and $cursor -eq $line.Length) {
-            $__ficus.Manual = $true; $__ficus.Sel = 0; $__ficus.Picked = $false
+        if (($__ficus.Held -or $__ficus.Off -or -not $__ficus.Auto) -and $line -and $cursor -eq $line.Length) {
+            $__ficus.Manual = $true; $__ficus.Off = $false; $__ficus.Sel = 0; $__ficus.Picked = $false
             __FicusRefresh
             if ($__ficus.N -gt 0) { return }
             $__ficus.Manual = $false
@@ -393,15 +394,16 @@ foreach ($pair in @(@($__ficus.KeyNext_group, 'next-group'), @($__ficus.KeyPrev_
     }
 }
 
+# Esc / Ctrl-G turn the menu off for the rest of this line, as Fig's hide
+# does: typing no longer opens it, Tab does (and it then follows typing).
+# Without a menu the key does what it did before: in Emacs mode Escape starts
+# a chord (Escape,b …), and the saved handler still reads its second key.
 $__ficusDismissBody = @'
-    if ($__ficus.Drawn -gt 0) { __FicusClose; return }
+    if ($__ficus.Drawn -gt 0) { __FicusClose; $__ficus.Off = $true; $__ficus.Manual = $false; return }
     __FicusFallthrough $chord $key $arg
 '@
 foreach ($chord in $__ficus.KeyDismiss) { __FicusBind $chord $__ficusDismissBody 'dismiss' }
-# In Emacs mode Escape is the prefix of Alt-chords (ChordFirstKey): leave it.
-if ((Get-PSReadLineOption).EditMode -eq 'Windows') {
-    __FicusBind 'Escape' $__ficusDismissBody 'dismiss'
-}
+if ($__ficus.KeyDismiss -notcontains 'Escape') { __FicusBind 'Escape' $__ficusDismissBody 'dismiss' }
 
 # Enter with an item highlighted (the first one, or one chosen with
 # Up/Down) completes with it and closes the menu: it stays closed until the
@@ -419,7 +421,7 @@ __FicusBind 'Enter' @'
         }
     }
     __FicusClose
-    $__ficus.Manual = $false
+    $__ficus.Manual = $false; $__ficus.Off = $false
     $__ficus.NativeKey = $null   # the command may change what completes
     __FicusFallthrough $chord $key $arg
 '@ 'run'
@@ -443,9 +445,11 @@ __FicusBind 'RightArrow' @'
 '@ 'ghost'
 
 # Keys that leave the edit position or the line: erase the menu first.
+# Ctrl+c abandons the line, so the next one starts with the menu on again.
 foreach ($chord in 'Ctrl+c', 'LeftArrow', 'Home', 'End', 'Ctrl+a', 'Ctrl+e', 'Ctrl+u', 'Ctrl+w') {
     __FicusBind $chord @'
     __FicusClose
+    if ($chord -eq 'Ctrl+c') { $__ficus.Off = $false; $__ficus.Manual = $false }
     __FicusFallthrough $chord $key $arg
 '@ 'close'
 }

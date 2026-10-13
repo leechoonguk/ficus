@@ -50,6 +50,9 @@ type RenderOptions struct {
 	Icons    string // none | ascii | nerd: the item kind column
 	Groups   bool   // group items by tag under headers (see Grouped)
 	Pattern  string // the typed filter; groups only show without one
+	// RunRow puts a "run as typed" row above the items (see RunAsTyped).
+	// Highlighted while no item is selected: Enter then runs the line.
+	RunRow bool
 }
 
 // rowBudget returns how many of total display rows fit next to extra
@@ -105,15 +108,70 @@ func kindGlyph(k ItemKind, icons string) string {
 // display is one menu row: a group header or an item.
 type display struct {
 	header string
-	item   int // index into matches; -1 for a header
+	item   int // index into matches; -1 for a header, runRowItem for the run row
+}
+
+// runRowItem marks the "run as typed" row in a display list.
+const runRowItem = -2
+
+// runDescription explains the run row where items have descriptions.
+const runDescription = "run the line as typed"
+
+// runRowLine draws the "run as typed" row in the item columns; highlighted,
+// it carries the ">" marker like a selected item.
+func runRowLine(label string, labelW, descW, kindW int, highlighted bool, th Theme, gl Glyphs) []Span {
+	style, desc, marker := th.Desc, th.Desc, " "
+	if highlighted {
+		style, desc, marker = th.Selected, th.SelectedDesc, ">"
+	}
+	// The arrow starts in the kind column (when there is one), like an icon.
+	w := kindW + labelW
+	line := []Span{{Text: marker + pad(truncate(label, w, gl.Ellipsis), w), Style: style}}
+	if descW > 0 {
+		return append(line, Span{Text: "  " + pad(truncate(runDescription, descW, gl.Ellipsis), descW) + " ", Style: desc})
+	}
+	return append(line, Span{Text: " ", Style: style})
+}
+
+// RunAsTyped reports whether Enter should run the line as typed rather than
+// complete with the best match, as Fig's "auto-execute" suggestion does:
+//
+//   - the word is empty (after a space, "/", "=", or a lone "-"/"--"): what
+//     is typed is complete — `ls `, `cd ../`, `cat -`;
+//   - the word is "." or "..", which name directories by themselves;
+//   - the word already equals a candidate (a directory with or without its
+//     trailing separator): completing would only add a space;
+//   - no candidate starts with the word: the best match is a fuzzy guess
+//     (`cd ..` → foo.tar.gz), not a continuation of what was typed.
+//
+// Otherwise the word is the start of a longer candidate and Enter completes it.
+func RunAsTyped(matches []Match, c *Context) bool {
+	if len(matches) == 0 {
+		return false
+	}
+	switch c.Pattern {
+	case "", ".", "..":
+		return true
+	}
+	if !matches[0].prefix { // prefix matches rank first: none starts with the word
+		return true
+	}
+	for _, m := range matches {
+		word := strings.TrimPrefix(m.Value, c.FetchPrefix)
+		if word == c.Pattern || (m.Kind == ItemDir && strings.TrimRight(word, `/\`) == c.Pattern) {
+			return true
+		}
+	}
+	return false
 }
 
 // Render lays out matches as rows of "label  description". With selected,
 // row sel is highlighted and marked with ">"; sel wraps around in both
 // directions so the shell can step it blindly. Without, nothing is
-// highlighted: the menu only shows what Tab or Up/Down would take, and Enter
-// runs the line as typed. Grouped matches (see GroupOrder) get a header per
-// tag; a description too long for its row is wrapped below the rows.
+// highlighted — or, with RunRow, the "run as typed" row is: the menu only
+// shows what Tab or Up/Down would take, and Enter runs the line as typed.
+// Grouped matches (see GroupOrder) get a header per tag; a description too
+// long for its row is wrapped below the rows.
 func Render(matches []Match, usage string, opts RenderOptions) Menu {
 	lay, th, gl := opts.Layout, opts.Theme, opts.Glyphs
 	if lay.Width < 20 || lay.Height < 5 {
@@ -135,7 +193,10 @@ func Render(matches []Match, usage string, opts RenderOptions) Menu {
 	}
 
 	grouped := Grouped(matches, opts.Groups, opts.Pattern)
-	rows := make([]display, 0, n)
+	rows := make([]display, 0, n+1)
+	if opts.RunRow {
+		rows = append(rows, display{item: runRowItem})
+	}
 	selRow := 0
 	for i, m := range matches {
 		if grouped && m.Tag != "" && (i == 0 || m.Tag != matches[i-1].Tag) {
@@ -146,6 +207,7 @@ func Render(matches []Match, usage string, opts RenderOptions) Menu {
 		}
 		rows = append(rows, display{item: i})
 	}
+	runLabel := gl.Run + " run"
 
 	icons := false
 	if opts.Icons != "none" && opts.Icons != "" {
@@ -161,9 +223,15 @@ func Render(matches []Match, usage string, opts RenderOptions) Menu {
 		kindW = 2
 	}
 	labelW, descW := 1, 0
+	if opts.RunRow {
+		labelW = runewidth.StringWidth(runLabel)
+	}
 	for _, m := range matches {
 		labelW = max(labelW, runewidth.StringWidth(m.Label()))
 		descW = max(descW, runewidth.StringWidth(m.Description))
+	}
+	if opts.RunRow && descW > 0 { // without descriptions the run row has none either
+		descW = max(descW, runewidth.StringWidth(runDescription))
 	}
 	labelW = min(labelW, max(12, (width-kindW)*45/100), width-kindW-2)
 	// A column too narrow for its text is dropped (the details pane shows
@@ -174,7 +242,10 @@ func Render(matches []Match, usage string, opts RenderOptions) Menu {
 		descW = fit
 	}
 
-	details := detailLines(matches[target].Description, descW, lay, gl)
+	var details []string
+	if !opts.RunRow || selected { // the run row has nothing to detail
+		details = detailLines(matches[target].Description, descW, lay, gl)
+	}
 	visible := rowBudget(len(rows), lay, len(details), grouped)
 	if visible < 1 && len(details) > 0 {
 		details = nil
@@ -191,6 +262,10 @@ func Render(matches []Match, usage string, opts RenderOptions) Menu {
 	menu := Menu{Count: n, Sel: sel}
 	shown := 0
 	for _, r := range rows[start : start+visible] {
+		if r.item == runRowItem {
+			menu.Lines = append(menu.Lines, runRowLine(runLabel, labelW, descW, kindW, !selected, th, gl))
+			continue
+		}
 		if r.item < 0 {
 			text := " " + gl.Rule + gl.Rule + " " + r.header
 			menu.Lines = append(menu.Lines, []Span{{Text: truncate(text, width, gl.Ellipsis), Style: th.Header}})

@@ -28,6 +28,7 @@ typeset -gi __ficus_picked=0  # selection moved with Up/Down
 typeset -gi __ficus_presel=0  # the engine highlights the best match: Enter takes it
 typeset -gi __ficus_held=0    # the engine hides a menu Tab would open
 typeset -gi __ficus_manual=0  # Tab opened the menu: show it in full while typing
+typeset -gi __ficus_off=0     # Esc/Ctrl-G turned the menu off for this line (Tab opens it)
 typeset -g __ficus_move=''    # next-group | prev-group for the next _ficus_run
 typeset -g __ficus_post='' __ficus_last=''
 typeset -ga __ficus_hl
@@ -148,7 +149,7 @@ _ficus_pre_redraw() {
   fi
   __ficus_last=$BUFFER
   if [[ -n $BUFFER && $LASTWIDGET =~ $__ficus_typing ]] && _ficus_at_end &&
-     (( __ficus_cfg_auto || __ficus_manual )); then
+     (( (__ficus_cfg_auto && ! __ficus_off) || __ficus_manual )); then
     __ficus_sel=0 __ficus_picked=0
     # More input is already waiting (a paste without bracketed paste, fast
     # typing): skip the lookup, the last key of the burst makes it.
@@ -167,6 +168,7 @@ _ficus_pre_redraw() {
 _ficus_line_init() {
   emulate -L zsh
   _ficus_reset
+  __ficus_off=0
   __ficus_last=$BUFFER
 }
 
@@ -252,8 +254,8 @@ _ficus_menu_open() { (( __ficus_n )) && _ficus_at_end }
 _ficus_accept() {
   emulate -L zsh
   _ficus_menu_open || {
-    if (( __ficus_held || ! __ficus_cfg_auto )) && [[ -n $BUFFER ]] && _ficus_at_end; then
-      __ficus_manual=1 __ficus_sel=0 __ficus_picked=0
+    if (( __ficus_held || __ficus_off || ! __ficus_cfg_auto )) && [[ -n $BUFFER ]] && _ficus_at_end; then
+      __ficus_manual=1 __ficus_off=0 __ficus_sel=0 __ficus_picked=0
       _ficus_sync
       (( __ficus_n )) && return
       __ficus_manual=0
@@ -316,10 +318,13 @@ _ficus_group() {
 _ficus_group_next() { _ficus_group next-group }
 _ficus_group_prev() { _ficus_group prev-group }
 
+# Esc / Ctrl-G turn the menu off for the rest of this line, as Fig's hide
+# does: typing no longer opens it, Tab does (and it then follows typing).
 _ficus_dismiss() {
   emulate -L zsh
   (( $#POSTDISPLAY )) || { _ficus_fallthrough; return }
   _ficus_close
+  __ficus_off=1
 }
 
 # Full-screen fuzzy picker over all candidates (fzf-tab, in-process fzf).

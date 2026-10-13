@@ -7,7 +7,7 @@ are git submodules under `third_party/` (do not edit them).
 ## Layout
 
 ```
-cmd/ficus/            CLI: init, complete, accept, pick, fill, setup, doctor
+cmd/ficus/            CLI: init, complete, accept, pick, fill, setup, doctor, update
 cmd/ficus-carapace/   unmodified carapace-bin build (the argument backend)
 internal/engine/      parse the line, fetch/cache candidates, rank, render
 internal/config/      settings: defaults < config.toml < FICUS_* env
@@ -17,6 +17,7 @@ shell/                ficus.zsh, ficus.bash, ficus.ps1 (embedded by `ficus init`
 install.sh install.ps1    user installers (download a release, run `ficus setup`)
 .goreleaser.yaml      what a release builds and publishes
 scripts/release.sh    `make release` / `make unrelease`
+scripts/go.sh         the go command `make` builds with (fetches the go.mod version if needed)
 .github/workflows/    ci (tests on 3 OSes), release (tag → GoReleaser), verify-release
 Makefile              every command; `make help`; table in rule://root-makefile
 .omp/                 harness: hooks (pre blocks, post checks), rules, skills
@@ -24,9 +25,10 @@ Makefile              every command; `make help`; table in rule://root-makefile
 
 ## Commands
 
-`make build`, `make test`, `make verify` (the gate), `make install`. Publishing
-only when asked: `make commit` / `make push` (rule://root-git-workflow),
-`make release bump=…` (rule://release).
+`make build`, `make test`, `make verify` (the gate). `make install` never builds: it
+installs `bin/` after `make build`, else the latest release, so install your changes
+with `make build && make install`. Publishing only when asked: `make commit` /
+`make push` (rule://root-git-workflow), `make release bump=…` (rule://release).
 
 ## Versions and releases
 

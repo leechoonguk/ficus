@@ -1,5 +1,5 @@
-# ficus. Requires Go (see go.mod) and initialized submodules; `make help` lists
-# every target. The command index with notes is .omp/rules/root-makefile.md.
+# ficus. Requires git and make; Go is found or fetched by scripts/go.sh. `make
+# help` lists every target. The command index with notes is .omp/rules/root-makefile.md.
 
 PREFIX   ?= $(HOME)/.local
 SHELLS   ?=
@@ -12,6 +12,16 @@ export CGO_ENABLED := 0
 TAGS    := -tags release
 LDFLAGS := -ldflags '-s -w -X main.version=$(VERSION)'
 GO_DIRS := cmd internal shell
+
+# The go command, resolved on first use (targets that build nothing never
+# fetch Go): Go 1.21+ from PATH, else go.mod's version downloaded into .cache/.
+# GOTOOLCHAIN=auto lets an older Go 1.21+ switch to the go.mod version itself;
+# distributions that ship GOTOOLCHAIN=local in go.env (Fedora, Alpine) would
+# refuse. A GOTOOLCHAIN set in the environment or on the command line wins.
+GO = $(eval GO := $$(or $$(shell scripts/go.sh),$$(error no Go to build with: see the message above)))$(GO)
+ifeq ($(origin GOTOOLCHAIN),undefined)
+export GOTOOLCHAIN := auto
+endif
 
 # carapace-bin generates its completer registry; the generated files are
 # ignored by its .gitignore and must exist before it compiles.
@@ -27,24 +37,25 @@ all: build ## Build bin/ficus and bin/ficus-carapace (same as make build)
 help: ## List targets with their descriptions
 	@awk -F':.*## ' '/^[a-z][a-z-]*:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
+# fzf-tab is reference only and not needed to build.
 $(SUBMODULES):
-	git submodule update --init --depth 1
+	git submodule update --init --depth 1 $(CARAPACE) third_party/fzf
 
 $(GENERATED): $(SUBMODULES)
-	cd $(CARAPACE) && go generate ./cmd/...
+	cd $(CARAPACE) && $(GO) generate ./cmd/...
 
 generate: $(GENERATED) ## Generate carapace's completer registry (needed before any Go build)
 
 build: $(GENERATED) ## Build bin/ficus and bin/ficus-carapace for this machine
-	go build $(TAGS) $(LDFLAGS) -o bin/ficus ./cmd/ficus
-	go build $(TAGS) $(LDFLAGS) -o bin/ficus-carapace ./cmd/ficus-carapace
+	$(GO) build $(TAGS) $(LDFLAGS) -o bin/ficus ./cmd/ficus
+	$(GO) build $(TAGS) $(LDFLAGS) -o bin/ficus-carapace ./cmd/ficus-carapace
 
 test: $(GENERATED) ## Run the Go tests (engine, config, setup, shell integrations)
-	go test $(TAGS) ./cmd/... ./internal/... ./shell/...
+	$(GO) test $(TAGS) ./cmd/... ./internal/... ./shell/...
 
 lint: $(GENERATED) ## gofmt (no unformatted file) and go vet
-	@unformatted=$$(gofmt -l $(GO_DIRS)); if [ -n "$$unformatted" ]; then echo "gofmt needed:"; echo "$$unformatted"; exit 1; fi
-	go vet $(TAGS) ./cmd/... ./internal/... ./shell/...
+	@unformatted=$$("$$($(GO) env GOROOT)/bin/gofmt" -l $(GO_DIRS)); if [ -n "$$unformatted" ]; then echo "gofmt needed:"; echo "$$unformatted"; exit 1; fi
+	$(GO) vet $(TAGS) ./cmd/... ./internal/... ./shell/...
 
 # Harness checks first: they read the tree in milliseconds, so a wiring slip is
 # reported before the Go build and tests run.
@@ -62,10 +73,20 @@ demo: build ## Re-record docs/demo.gif from docs/demo.tape (needs vhs: brew inst
 	docs/demo-setup.sh "$(CURDIR)/bin/ficus"
 	vhs docs/demo.tape
 
-install: build ## Copy both binaries to $(PREFIX)/bin and run ficus setup (SHELLS="zsh bash" to choose)
-	install -d $(PREFIX)/bin
-	install -m 755 bin/ficus bin/ficus-carapace $(PREFIX)/bin/
-	$(PREFIX)/bin/ficus setup $(if $(SHELLS),--shells $(shell echo $(SHELLS) | tr ' ' ','))
+# Install never builds: `make build && make install` installs your build from
+# bin/, a plain `make install` the latest release (install.sh, curl only; v=
+# pins a tag). Either way it says which. As install.sh, with no supported shell
+# installed yet (a bare Alpine has only ash) the binaries stay installed and
+# setup is left for later; named SHELLS must succeed.
+install: ## Install bin/ from make build, else the latest release (v=vX.Y.Z), into $(PREFIX)/bin; then ficus setup (SHELLS="zsh bash")
+	@if [ -x bin/ficus ] && [ -x bin/ficus-carapace ]; then \
+		echo "ficus: installing the build in bin/ ($$(bin/ficus version)) into $(PREFIX)/bin"; \
+		install -d $(PREFIX)/bin && install -m 755 bin/ficus bin/ficus-carapace $(PREFIX)/bin/ || exit 1; \
+		$(if $(SHELLS),$(PREFIX)/bin/ficus setup --shells $(shell echo $(SHELLS) | tr ' ' ','),$(PREFIX)/bin/ficus setup || echo "ficus: run '$(PREFIX)/bin/ficus setup' once zsh 5.9+ or bash 4+ or PowerShell is installed" >&2); \
+	else \
+		echo "ficus: nothing built in bin/; installing the $(or $(v),latest) release (make build first to install your own)"; \
+		FICUS_INSTALL_DIR='$(PREFIX)/bin' FICUS_VERSION='$(v)' FICUS_SHELLS='$(shell echo $(SHELLS) | tr ' ' ',')' sh install.sh; \
+	fi
 
 # The cache lives where Go's os.UserCacheDir points, unless FICUS_CACHE_DIR.
 CACHE := $(or $(FICUS_CACHE_DIR),$(if $(filter Darwin,$(shell uname -s)),$(HOME)/Library/Caches/ficus,$(or $(XDG_CACHE_HOME),$(HOME)/.cache)/ficus))

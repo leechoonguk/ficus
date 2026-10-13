@@ -93,13 +93,15 @@ echo '{"values":[{"value":"checkout"},{"value":"cherry"},{"value":"cherry-pick"}
 	}
 }
 
-// Until Up/Down chooses, the first item is highlighted (Enter completes
-// with it), whatever is typed; preselect = false highlights nothing.
+// Until Up/Down chooses, the first item is highlighted and Enter completes
+// with it — unless what is typed is already the line to run, when the "run"
+// row on top is highlighted instead and Enter runs the line as typed;
+// preselect = false highlights nothing.
 func TestPreselect(t *testing.T) {
 	dir := isolate(t, "git")
 	backend := filepath.Join(dir, "carapace")
 	if err := os.WriteFile(backend, []byte(`#!/bin/sh
-echo '{"values":[{"value":"checkout"},{"value":"cherry"},{"value":"status"},{"value":"stash"}]}'
+echo '{"values":[{"value":"checkout"},{"value":"cherry"},{"value":"status"},{"value":"stash"},{"value":"stash-show"}]}'
 `), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -110,8 +112,14 @@ echo '{"values":[{"value":"checkout"},{"value":"cherry"},{"value":"status"},{"va
 	if out := complete("git ch"); !strings.Contains(out, "__ficus_presel=1") || !strings.Contains(out, `\n>`) {
 		t.Errorf("a typed word highlights its best match:\n%s", out)
 	}
-	if out := complete("git "); !strings.Contains(out, "__ficus_presel=1") || !strings.Contains(out, `\n>checkout`) {
-		t.Errorf("an empty word highlights the first item too:\n%s", out)
+	for _, line := range []string{"git ", "git stash"} {
+		out := complete(line)
+		if !strings.Contains(out, "__ficus_presel=0") || !strings.Contains(out, `\n>↪ run`) {
+			t.Errorf("%q: the run row is highlighted, so Enter runs the line:\n%s", line, out)
+		}
+	}
+	if out := runOut(t, "complete", "--shell", "zsh", "--sel", "0", "--budget", "0", "--", "git stash"); !strings.Contains(out, `\n ↪ run`) || !strings.Contains(out, `\n>stash`) {
+		t.Errorf("after Down the first item is highlighted below the run row:\n%s", out)
 	}
 	t.Setenv("FICUS_PRESELECT", "0")
 	if out := complete("git ch"); !strings.Contains(out, "__ficus_presel=0") || strings.Contains(out, `\n>`) {

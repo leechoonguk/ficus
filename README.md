@@ -47,6 +47,8 @@ curl -fsSL https://github.com/leechoonguk/ficus/releases/latest/download/install
 
 Downloads this machine's archive from the latest release, verifies it against `checksums.txt`, puts both binaries (`ficus`, `ficus-carapace`) in `~/.local/bin` and runs `ficus setup`. No administrator rights are needed. The same line works on a remote server; nothing has to be set up on the client or in tmux. Environment variables change it: `FICUS_VERSION=v0.1.0` (pin a version), `FICUS_INSTALL_DIR` (install location), `FICUS_SHELLS=zsh,bash` (shells to enable), `FICUS_NO_SETUP=1` (skip enabling).
 
+From a clone, `make install` does the same without building anything (`v=vX.Y.Z` pins a version, `PREFIX`/`SHELLS` as below); `make build && make install` installs your own build instead.
+
 ### Ubuntu, Debian (.deb)
 
 ```sh
@@ -64,6 +66,15 @@ irm https://github.com/leechoonguk/ficus/releases/latest/download/install.ps1 | 
 ```
 
 Installs into `%LOCALAPPDATA%\Programs\ficus`, adds it to the user PATH, and enables ficus in the `$PROFILE` of PowerShell 7 (`pwsh`) and Windows PowerShell 5.1. No administrator rights are needed. The executables are not signed, so SmartScreen or antivirus software may warn the first time.
+
+### Update
+
+```sh
+ficus update           # install the latest release over this ficus and ficus-carapace
+ficus update --check   # only report whether a newer release exists
+```
+
+It finds the latest release, downloads the same archive the install scripts use, checks it against `checksums.txt` and replaces both binaries where this `ficus` is installed (`~/.local/bin`, `%LOCALAPPDATA%\Programs\ficus`, a custom `FICUS_INSTALL_DIR`). Startup files need no change; new terminals load the new version. A package install (`/usr/bin`) is updated with its package; a source build (`make build && make install`) with `git pull && make build && make install`, or replaced with the release by `ficus update --force`. Releases up to v0.1.0 have no `update`: run the install line once more.
 
 ### Enabling it in shells: `ficus setup`
 
@@ -88,19 +99,19 @@ Several versions of a shell read the same startup file (macOS's `/bin/bash` 3.2 
 | `install.sh` | `ficus setup --remove && rm ~/.local/bin/ficus ~/.local/bin/ficus-carapace` |
 | `.deb` | `ficus setup --remove && sudo apt remove ficus` |
 | `install.ps1` | `ficus setup --remove`, then delete `%LOCALAPPDATA%\Programs\ficus` |
-| `make install` | `make uninstall` |
+| `make install` (either way) | `make uninstall` |
 
 The candidate cache is the `ficus` folder in the user cache directory (macOS `~/Library/Caches/ficus`, Linux `~/.cache/ficus`, Windows `%LOCALAPPDATA%\ficus`) and can be deleted.
 
 ### Build from source
 
-Needs Go (the `go.mod` version) and git.
+Needs git, make and curl (or wget). Go is optional: `make` uses the `go` on PATH when it is Go 1.21 or newer, letting it fetch the `go.mod` version itself (`GOTOOLCHAIN=auto`, even where the distribution sets `local`), and otherwise downloads the `go.mod` version from go.dev once, checks its SHA-256 and keeps it in `.cache/` of the clone (`scripts/go.sh`). The submodules are fetched on the first build. `make install` never builds: it installs what `make build` left in `bin/`, and with nothing there the latest release, printing which.
 
 ```sh
-git clone --recursive https://github.com/leechoonguk/ficus && cd ficus   # already cloned: git submodule update --init --depth 1
+git clone https://github.com/leechoonguk/ficus && cd ficus
 make            # bin/ficus, bin/ficus-carapace
 make test
-make install    # copy to ~/.local/bin (PREFIX=... to change) + ficus setup (SHELLS="zsh bash" to choose)
+make install    # bin/ to ~/.local/bin (PREFIX=... to change) + ficus setup (SHELLS="zsh bash" to choose)
 make uninstall  # ficus setup --remove + delete the binaries and the cache
 make dist       # every platform's release files into dist/ (needs GoReleaser; publishes nothing)
 make verify     # the gate before a commit: harness checks + gofmt/vet + tests
@@ -125,7 +136,7 @@ After `make verify`, `scripts/release.sh` does the following in order and stops 
 
 `make unrelease v=vX.Y.Z` removes a bad release (the GitHub release and its tag; `releases/latest` then points at the previous release). Never reuse a published version number; fix forward with the next one. Release notes are the commit subjects since the last tag (without `docs:` and `test:`), so write subjects a user can read.
 
-Archive names carry no version (`ficus_linux_amd64.tar.gz`), so `releases/latest/download/...` always points at the newest release. Users update by running the install line again.
+Archive names carry no version (`ficus_linux_amd64.tar.gz`), so `releases/latest/download/...` always points at the newest release. Users update with `ficus update` (or by running the install line again).
 
 This repository has an omp harness (`.omp/`). When an agent works here, hooks block committing, pushing or releasing without the user asking, and commands that bypass `make release` (`git tag`, `gh release`). `make check-release` (part of `make verify`) checks that the release config, `scripts/release.sh`, the installers and the workflows name the same files and repository, and `make check-english` that documentation and code comments are English. `make help` lists every command.
 
@@ -134,18 +145,23 @@ This repository has an omp harness (`.omp/`). When an agent works here, hooks bl
 | Key | Menu open | No menu |
 |---|---|---|
 | Tab | Insert the chosen item; with nothing chosen, the prefix all candidates share (when longer than what is typed, no space), else the first item (the next word's menu follows) | Open a held-back menu (short command word, `auto_popup = false`), else the key's own action |
-| Down | Next item (the first Down goes to the second item) | Its own action (history) |
+| Down | Next item (the first Down goes to the second item, or to the first item below the run row) | Its own action (history) |
 | Up | Moves in the menu only after Down chose an item (with `up_arrow = "menu"` the first Up goes to the last item); before that, history | Its own action (history) |
 | Alt-Down / Alt-Up | First item of the next/previous group; a page without groups | Its own action |
 | Right (zsh, PowerShell, `ghost = true`) | Insert the dimmed suggestion after the cursor | Its own action |
-| Ctrl-G (every shell), Esc (zsh emacs mode, PowerShell Windows mode) | Close the menu | Its own action |
+| Esc (except vi insert mode), Ctrl-G | Turn the menu off for the rest of the line: typing no longer opens it, Tab does (and it then follows typing again). The next command line starts with it on | Its own action |
 | Ctrl-Space | fzf picker (fuzzy search over every candidate, with a preview for files). Your `FZF_DEFAULT_OPTS` is not applied | Same |
-| Enter | Complete with the highlighted item and close the menu (the line does not run). The menu stays closed until the next key, so a second Enter runs the line | Its own action (run) |
+| Enter | With an item highlighted: complete with it and close the menu (the line does not run; the menu stays closed until the next key, so a second Enter runs the line). With the run row highlighted: run the line as typed | Its own action (run) |
 | Ctrl-C, cursor movement | Clear the menu, then the key's own action | Its own action |
 
 Tab, Ctrl-Space, Ctrl-G and Alt-Down/Up can be changed in the `[keys]` settings.
 
-When the menu opens **the first item is highlighted** (a `>` at the start of the row) and Enter completes with it: the highlight is exactly what Enter inserts. After completing, the menu stays closed until the next key, so a second Enter runs the line. Without a menu (no candidates, a short command word, closed with Ctrl-G) Enter runs the line as typed. The first Down goes to the second item, and Enter also completes with an item chosen with Up/Down. The menu follows the cursor only at the end of the line and closes when the cursor moves. To start with nothing highlighted (Enter always runs the line as typed): `preselect = false`.
+When the menu opens **the first row is highlighted** (a `>` at the start of the row), and the highlight is exactly what Enter does:
+
+- While a word is being typed and candidates continue it (`git ch`, `rm notes`), the first item is highlighted and Enter completes with it. After completing, the menu stays closed until the next key, so a second Enter runs the line.
+- When what is typed is already the line to run, a **`↪ run` row** on top is highlighted instead and Enter runs the line as typed, as Fig's "auto-execute" suggestion does. That is the case when the word is empty (after a space, after `/` as in `cd ../`, a lone `-` as in `cat -`), when it is `.` or `..`, when it already names a candidate (`git log`, `cat notes.txt`, `cd src`), and when no candidate starts with it (only fuzzy matches). Down goes to the first item below it.
+
+Without a menu (no candidates, a short command word, turned off with Esc) Enter runs the line as typed. Enter also completes with an item chosen with Up/Down. The menu follows the cursor only at the end of the line and closes when the cursor moves. To start with nothing highlighted and no run row (Enter always runs the line as typed): `preselect = false`.
 
 In command position the menu is held back until `min_input` characters (2 by default) are typed, and when the typed word already names a command (so hundreds of commands do not flash on every first letter). Tab opens it then, and it keeps following the line.
 
@@ -159,9 +175,10 @@ Examples (with files `alpha.txt`, `beta.txt`, `gamma.txt`):
 |---|---|
 | `cat alp` Enter | the line becomes `cat alpha.txt ` (not run, menu closed) |
 | `cat alp` Enter Enter | runs `cat alpha.txt` |
-| `cat ` Enter Enter | runs `cat alpha.txt` (the first item) |
-| `cat ` Down Enter Enter | runs `cat beta.txt` |
-| `cat ` Ctrl-G Enter | runs `cat` (menu closed) |
+| `cat alpha.txt` Enter | runs `cat alpha.txt` (the word names a candidate: run row) |
+| `cat ` Enter | runs `cat` (empty word: run row) |
+| `cat ` Down Enter Enter | runs `cat alpha.txt` (Down leaves the run row for the first item) |
+| `cd ../` Enter | runs `cd ../` (run row) |
 | `cat alp` Enter (`preselect = false`) | runs `cat alp` |
 
 ## Settings
@@ -175,7 +192,7 @@ groups = true         # header rows per tag
 icons = "ascii"       # none | ascii | nerd
 min_input = 2         # characters in command position before the menu opens (0-10)
 auto_popup = true     # false: only Tab opens the menu (screen reader users, …)
-preselect = true      # highlight the first item so Enter completes with it (false: Enter runs the line as typed)
+preselect = true      # highlight the first item (or the ↪ run row) so Enter does what is highlighted (false: Enter runs the line as typed)
 up_arrow = "history"  # history | menu: what Up does before Down chose an item
 ghost = false         # dimmed preview of the first (chosen) item after the cursor (zsh, PowerShell)
 recent = true         # rank recently accepted items first
@@ -228,7 +245,8 @@ Environment variables that are not settings:
 - Every binding goes into both the emacs and vi-insert keymaps, and Enter in vi command mode also clears the menu before running (`set -o vi` works).
 - `set bind-tty-special-chars off` is set (otherwise readline replaces the Backspace binding with the tty erase character on every line).
 - Multibyte input (Hangul, …) goes through readline's own insertion, and the menu does not refresh on those keys (it does on the next ASCII key).
-- Tab, Up, Down, Ctrl-G and Alt-Up/Down (the configured keys) are bound to ficus only while a menu is open (Tab also while a menu is held back) and get their own bindings back when it closes (a readline function, a macro, or another tool's `bind -x` command such as atuin's). So without a menu everything works as before, e.g. a second Tab lists completions. If keys ficus does not watch (Ctrl-P, Delete, Alt-., …) changed the line, or the cursor is not at the end, a menu key closes the menu and does its own action.
+- Tab, Up, Down, Ctrl-G, Esc (emacs mode) and Alt-Up/Down (the configured keys) are bound to ficus only while a menu is open (Tab also while a menu is held back) and get their own bindings back when it closes (a readline function, a macro, or another tool's `bind -x` command such as atuin's). So without a menu everything works as before, e.g. a second Tab lists completions. If keys ficus does not watch (Ctrl-P, Delete, Alt-., …) changed the line, or the cursor is not at the end, a menu key closes the menu and does its own action.
+- A lone Esc bound next to the Alt-key and arrow sequences that start with it is told apart by `keyseq-timeout`, so while a menu is open that is lowered to 100 ms and the user's value comes back when it closes. Readline cannot unbind a lone Esc completely: once a menu has been open, Esc then a letter typed as two keys acts as Alt-letter only within `keyseq-timeout` (500 ms by default), and an escape sequence readline has no binding for inserts its remaining characters. Alt-letter itself is unaffected.
 - During Ctrl-R/Ctrl-S search Backspace goes back to readline (search only recognizes a key bound directly to `backward-delete-char`).
 - While keys are pending (`read -t 0`: a paste, fast typing) nothing is looked up on that key.
 - The menu rewrites only the rows that changed, and each frame is wrapped in synchronized output (`CSI ? 2026 h/l`).
@@ -246,7 +264,7 @@ Environment variables that are not settings:
 - While keys are pending (`[Console]::KeyAvailable`) nothing is looked up; the menu rewrites only changed rows, wrapped in synchronized output.
 - The picker (`Ctrl-Space`) opens full screen in PowerShell: the inline mode asks the terminal for the cursor position, and PSReadLine intercepts the reply.
 - On Unix terminals Ctrl-Space arrives in PSReadLine as `Ctrl+@` (SetMark in Emacs mode), which ficus takes over.
-- In Emacs mode Esc is the prefix of Alt chords and is left alone; Ctrl-G closes the menu.
+- Esc turns the menu off in both edit modes. Without a menu it runs its previous handler: in Emacs mode that is the chord prefix (Esc then b still moves back a word), in Windows mode `RevertLine`.
 
 ## What has been verified
 

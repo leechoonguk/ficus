@@ -40,6 +40,8 @@ const usage = `usage:
   ficus setup [--shells zsh,bash,pwsh,powershell] [--remove]
                                  load ficus in every new shell (startup file blocks), or undo it
   ficus doctor                   show what ficus detects about the terminal and settings
+  ficus update [--check] [--force]
+                                 install the latest release over this ficus and ficus-carapace
   ficus version
 
 environment:
@@ -91,6 +93,8 @@ func run(args []string, out io.Writer) error {
 		return doctor(out)
 	case "setup":
 		return runSetup(args[1:], out)
+	case "update":
+		return runUpdate(args[1:], out)
 	case "complete", "accept", "pick", "fill":
 	default:
 		return fmt.Errorf("unknown subcommand %q", args[0])
@@ -109,7 +113,7 @@ func run(args []string, out io.Writer) error {
 	colors := fs.Int("colors", 256, "colors the terminal supports (terminfo colors)")
 	themeName := fs.String("theme", defTheme, "dark, light or ansi")
 	external := fs.Bool("external", false, `read candidates from stdin ("value<TAB>label<TAB>description" lines) instead of fetching`)
-	unselected := fs.Bool("unselected", false, "no item chosen with Up/Down yet. complete: highlight the first item (preselect) or none; accept: insert what all matches share, if more than typed")
+	unselected := fs.Bool("unselected", false, "no item chosen with Up/Down yet. complete: highlight the first item (preselect), the run row (engine.RunAsTyped) or none; accept: insert what all matches share, if more than typed")
 	fullscreen := fs.Bool("fullscreen", false, "pick: use the whole screen instead of an inline window")
 	prompt := fs.String("prompt", "", "complete (bash): visible text of the prompt's last line, to place the menu")
 	budget := fs.Duration("budget", s.Budget, "longest wait for candidates not yet cached; 0 waits for the completer")
@@ -196,8 +200,12 @@ func run(args []string, out io.Writer) error {
 		}
 		// Until Up/Down chooses, the first item is highlighted: Enter
 		// completes with it (and the shell keeps the menu closed after, so
-		// the next Enter runs the line).
-		presel := *unselected && s.Preselect && fetchErr == nil
+		// the next Enter runs the line). When what is typed is already the
+		// line to run (engine.RunAsTyped: an empty word, `.`/`..`, a word
+		// that names a candidate, only fuzzy matches), a "run" row on top is
+		// highlighted instead and Enter runs the line, as in Fig.
+		opts.RunRow = s.Preselect && fetchErr == nil && engine.RunAsTyped(matches, ctx)
+		presel := *unselected && s.Preselect && fetchErr == nil && !opts.RunRow
 		if presel {
 			opts.Sel, opts.Selected = 0, true
 		}
@@ -234,9 +242,10 @@ func run(args []string, out io.Writer) error {
 		if slices.Contains(s.DisableFor, ctx.Words[0]) {
 			menu, held = engine.Menu{}, false // disable_for: no menu for this command
 		}
-		if *ghost && ghostOK && menu.Count > 0 {
-			// The rest of the line accepting the highlighted (or first)
-			// item gives, when it only appends to what is typed.
+		if *ghost && ghostOK && menu.Count > 0 && !(opts.RunRow && *unselected) {
+			// The rest of the line accepting the highlighted item gives,
+			// when it only appends to what is typed. None while the run
+			// row is highlighted: Enter adds nothing then.
 			newL := ctx.Accept(cands, matches[menu.Sel].Value)
 			if strings.HasPrefix(newL, lbuffer) {
 				menu.Ghost = engine.Span{Text: engine.Printable(strings.TrimSuffix(newL[len(lbuffer):], " ")), Style: theme.Ghost}

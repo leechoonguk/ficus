@@ -34,13 +34,12 @@ Sleep 1s
 Enter
 Sleep 1.8s
 
-# Flags with descriptions.
+# Flags with descriptions. "-l" is already a whole flag: the run row is
+# highlighted and one Enter runs the line.
 Type "ls -"
 Sleep 1.8s
 Type "l"
-Sleep 1s
-Enter
-Sleep 800ms
+Sleep 1.5s
 Enter
 Sleep 2s
 

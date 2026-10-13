@@ -667,3 +667,60 @@ func TestHelpSkipsScripts(t *testing.T) {
 		t.Error("a script was run with --help")
 	}
 }
+
+// Enter runs the line as typed when it is already complete — the bug
+// reports these come from: `cd ../` completed into a subdirectory, `ls ` into
+// the first file, `git add .` into a fuzzy match, `git log` needed two Enters.
+func TestRunAsTyped(t *testing.T) {
+	files := []Item{{Value: "foo.tar.gz", Kind: ItemFile}, {Value: "notes.txt", Kind: ItemFile}, {Value: "notes.txt.bak", Kind: ItemFile}, {Value: "src/", Kind: ItemDir}}
+	parent := []Item{{Value: "../alpha/", Kind: ItemDir}, {Value: "../beta/", Kind: ItemDir}}
+	subs := []Item{{Value: "log"}, {Value: "reflog"}, {Value: "shortlog"}, {Value: "checkout"}, {Value: "cherry"}}
+	flags := []Item{{Value: "-b", Kind: ItemFlag}, {Value: "-n", Kind: ItemFlag}}
+	tests := []struct {
+		line  string
+		items []Item
+		run   bool
+	}{
+		{"cd ../", parent, true},       // a directory prefix with nothing after it
+		{"ls ", files, true},           // an empty word after a space
+		{"cat -", flags, true},         // a lone dash (stdin, previous branch)
+		{"git add .", files, true},     // "." names a directory
+		{"cd ..", files, true},         // ".." too; foo.tar.gz only matches fuzzily
+		{"git log", subs, true},        // names a candidate: completing adds only a space
+		{"cat notes.txt", files, true}, // also when a longer candidate follows
+		{"cd src", files, true},        // a directory without its trailing slash
+		{"grep oo", files, true},       // no candidate starts with the word
+		{"git ch", subs, false},        // the start of longer candidates: Enter completes
+		{"rm notes", files, false},
+		{"git lo", subs, false},
+	}
+	for _, tt := range tests {
+		c := Parse(Zsh, tt.line)
+		if got := RunAsTyped(Filter(tt.items, c.FetchPrefix, c.Pattern, nil), c); got != tt.run {
+			t.Errorf("RunAsTyped(%q) = %v, want %v", tt.line, got, tt.run)
+		}
+	}
+	if RunAsTyped(nil, Parse(Zsh, "ls ")) {
+		t.Error("no candidates, no menu: nothing to run from")
+	}
+}
+
+// The run row is highlighted while no item is selected; once Down selects
+// an item it stays on top, unmarked.
+func TestRenderRunRow(t *testing.T) {
+	ms := []Match{{Item: Item{Value: "log"}}, {Item: Item{Value: "reflog"}}}
+	opts := testOpts(0, false, Layout{Width: 40, Height: 24, MaxRows: 8})
+	opts.RunRow = true
+	lines := Render(ms, "", opts).Lines
+	if got := lineText(lines[0]); !strings.HasPrefix(got, ">↪ run") {
+		t.Errorf("run row %q, want it marked and first", got)
+	}
+	if got := lineText(lines[1]); !strings.HasPrefix(got, " log") {
+		t.Errorf("first item %q must not be marked", got)
+	}
+	opts.Selected = true
+	lines = Render(ms, "", opts).Lines
+	if !strings.HasPrefix(lineText(lines[0]), " ↪ run") || !strings.HasPrefix(lineText(lines[1]), ">log") {
+		t.Errorf("after Down: %q / %q", lineText(lines[0]), lineText(lines[1]))
+	}
+}

@@ -29,7 +29,7 @@ type Settings struct {
 	Groups        bool   // group items by tag under headers
 	MinInput      int    // characters typed in command position before the menu opens
 	AutoPopup     bool   // open the menu while typing (false: Tab opens it)
-	Preselect     bool   // highlight the first item: Enter completes with it
+	Preselect     bool   // highlight the first item (or the run row, engine.RunAsTyped): Enter does what is highlighted
 	UpArrow       string // history | menu: what Up does before Down picked an item
 	Ghost         bool   // inline suggestion after the cursor
 	Recent        bool   // rank recently accepted items first

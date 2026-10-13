@@ -17,12 +17,12 @@ Every command an agent or a human runs is a target. Machine-checked by
 | `make all` | Same as `make build` (the default target) |
 | `make help` | List targets with their `##` descriptions |
 | `make generate` | Generate carapace's completer registry (every Go build needs it) |
-| `make build` | `bin/ficus`, `bin/ficus-carapace` for this machine, version from `git describe` |
+| `make build` | `bin/ficus`, `bin/ficus-carapace` for this machine, version from `git describe`; Go from `scripts/go.sh` (Go 1.21+ on PATH with `GOTOOLCHAIN=auto`, else the `go.mod` version downloaded into `.cache/`) |
 | `make test` | Go tests: engine, config, setup, termq, shell integrations |
 | `make lint` | gofmt (no unformatted file) + `go vet` |
 | `make verify` | The gate: check-makefiles + check-omp-hooks + check-omp-rules + check-omp-skills + check-release + check-english + lint + test |
 | `make dist` | Every release file into `dist/` without publishing (GoReleaser snapshot) |
-| `make install` | Copy both binaries to `$(PREFIX)/bin` (default `~/.local/bin`) and run `ficus setup` (`SHELLS="zsh bash"`) |
+| `make install` | Never builds: `bin/` from `make build`, else the latest release via `install.sh` (`v=vX.Y.Z` pins one), into `$(PREFIX)/bin` (default `~/.local/bin`), then `ficus setup` (`SHELLS="zsh bash"`); prints which it installed |
 | `make uninstall` | `ficus setup --remove`, delete the binaries and the candidate cache |
 | `make demo` | Re-record `docs/demo.gif` from `docs/demo.tape` in a throwaway repository under `/tmp` (needs vhs) |
 | `make clean` | Remove `bin/` and `dist/` |

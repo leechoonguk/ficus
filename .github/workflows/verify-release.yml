@@ -25,6 +25,7 @@ jobs:
         run: |
           set -x
           ~/.local/bin/ficus version
+          ~/.local/bin/ficus update --check  # finds the latest release on GitHub
           grep -q '>>> ficus >>>' ~/.bashrc
           out=$(~/.local/bin/ficus complete --shell bash --budget 0 -- 'git ch'); echo "$out" | head -3
           echo "$out" | grep -q "eckout"  # "ch" is highlighted: ch<SGR>eckout
@@ -67,6 +68,8 @@ jobs:
           $ficus = Join-Path $env:LOCALAPPDATA 'Programs\ficus\ficus.exe'
           & $ficus version
           & $ficus doctor
+          & $ficus update --check
+          if ($LASTEXITCODE -ne 0) { throw 'ficus update --check failed' }
           $profileText = Get-Content -Raw $PROFILE
           if ($profileText -notmatch '>>> ficus >>>') { throw "profile not set up: $PROFILE" }
           $env:FICUS_LBUFFER = 'Get-Ch'
