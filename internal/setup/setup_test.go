@@ -203,3 +203,47 @@ func TestLinesRunInRealShells(t *testing.T) {
 		}
 	}
 }
+
+// With ficus installed, the line puts its directory on PATH once (a fresh
+// macOS PATH lacks ~/.local/bin) and leaves a PATH that has it alone, even
+// when the startup file is read again.
+func TestLinesAddDirectoryToPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shells")
+	}
+	e := testEnv(t)
+	dir := filepath.Join(e.Home, "my bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ficus := filepath.Join(dir, "ficus")
+	write(t, ficus, "#!/bin/sh\n") // `ficus init` prints nothing
+	if err := os.Chmod(ficus, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Add(e, ficus, []string{"bash", "zsh"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ shell, rc string }{{"zsh", ".zshrc"}, {"bash", ".bashrc"}} {
+		sh, err := exec.LookPath(c.shell)
+		if err != nil {
+			continue
+		}
+		rc := filepath.Join(e.Home, c.rc)
+		for _, start := range []string{"/usr/bin:/bin", "/usr/bin:" + dir + ":/bin"} {
+			cmd := exec.Command(sh, "-c", `. "$1"; . "$1"; printf %s "$PATH"`, "sh", rc)
+			cmd.Env = []string{"HOME=" + e.Home, "ZDOTDIR=" + e.Home, "PATH=" + start}
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("%s: %v %s", c.shell, err, out)
+			}
+			want := start
+			if !strings.Contains(start, dir) {
+				want = start + ":" + dir
+			}
+			if string(out) != want {
+				t.Errorf("%s with PATH=%s: got %q, want %q", c.shell, start, out, want)
+			}
+		}
+	}
+}

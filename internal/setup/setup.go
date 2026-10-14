@@ -126,16 +126,21 @@ func sq(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 func pq(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }   // PowerShell
 
 // targets lists the startup file and line for each shell. Lines run only
-// in their shell and leave the exit status alone.
+// in their shell and leave the exit status alone. Each also appends ficus's
+// directory to PATH when it is missing (~/.local/bin is not on a fresh
+// macOS PATH), so `ficus doctor` and `ficus update` work as typed; the menu
+// itself runs ficus by its full path.
 func (e Env) targets(ficus string, shells []string) ([]target, error) {
+	dir := filepath.Dir(ficus)
+	posixPath := fmt.Sprintf(`case ":$PATH:" in *:%s:*) ;; *) PATH="$PATH":%s ;; esac`, sq(dir), sq(dir))
 	var ts []target
 	for _, sh := range shells {
 		switch sh {
 		case "zsh":
-			ts = append(ts, target{e.zshRC(), fmt.Sprintf(`if [ -x %s ]; then eval "$(%s init zsh)"; fi`, sq(ficus), sq(ficus))})
+			ts = append(ts, target{e.zshRC(), fmt.Sprintf(`if [ -x %s ]; then %s; eval "$(%s init zsh)"; fi`, sq(ficus), posixPath, sq(ficus))})
 		case "bash":
 			// ~/.profile is also read by sh/dash.
-			line := fmt.Sprintf(`if [ -n "${BASH_VERSION-}" ] && [ -x %s ]; then eval "$(%s init bash)"; fi`, sq(ficus), sq(ficus))
+			line := fmt.Sprintf(`if [ -n "${BASH_VERSION-}" ] && [ -x %s ]; then %s; eval "$(%s init bash)"; fi`, sq(ficus), posixPath, sq(ficus))
 			for _, f := range e.bashRCs() {
 				ts = append(ts, target{f, line})
 			}
@@ -144,7 +149,7 @@ func (e Env) targets(ficus string, shells []string) ([]target, error) {
 			if err != nil || file == "" {
 				return nil, fmt.Errorf("%s not found", sh)
 			}
-			ts = append(ts, target{file, fmt.Sprintf("if (Test-Path -LiteralPath %s) { Invoke-Expression (& %s init pwsh | Out-String) }", pq(ficus), pq(ficus))})
+			ts = append(ts, target{file, fmt.Sprintf("if (Test-Path -LiteralPath %s) { if (($env:PATH -split [IO.Path]::PathSeparator) -notcontains %s) { $env:PATH += [IO.Path]::PathSeparator + %s }; Invoke-Expression (& %s init pwsh | Out-String) }", pq(ficus), pq(dir), pq(dir), pq(ficus))})
 		default:
 			return nil, fmt.Errorf("unknown shell %q (want %s)", sh, strings.Join(Shells, ", "))
 		}
