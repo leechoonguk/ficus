@@ -60,6 +60,36 @@ func TestBadValuesKeepDefaultsAndReportEveryKey(t *testing.T) {
 	}
 }
 
+// bridges: an empty list or FICUS_BRIDGES=none turns carapace's shell
+// bridges off, the variable wins over the file, and an unknown shell is
+// reported and keeps the default.
+func TestBridges(t *testing.T) {
+	load := func(file, env string) ([]string, error) {
+		writeConfig(t, file)
+		t.Setenv("FICUS_BRIDGES", env)
+		s, _, err := Load()
+		return s.Bridges, err
+	}
+	def := strings.Join(Defaults().Bridges, ",")
+	for _, c := range []struct {
+		file, env, want string
+		bad             bool
+	}{
+		{"", "", def, false},
+		{"bridges = []\n", "", "", false},
+		{"bridges = [\"fish\"]\n", "", "fish", false},
+		{"bridges = [\"fish\"]\n", "zsh, bash", "zsh,bash", false},
+		{"", "none", "", false},
+		{"bridges = [\"pwsh\"]\n", "", def, true},
+		{"bridges = \"zsh\"\n", "", def, true},
+	} {
+		got, err := load(c.file, c.env)
+		if strings.Join(got, ",") != c.want || (err != nil) != c.bad {
+			t.Errorf("file %q env %q: bridges %q err %v, want %q", c.file, c.env, got, err, c.want)
+		}
+	}
+}
+
 func TestKeyNamesAreValidated(t *testing.T) {
 	for _, name := range []string{"ctrl-x", "ctrl-m", "hyper-k", "alt-"} {
 		if ValidKey(name) == nil {

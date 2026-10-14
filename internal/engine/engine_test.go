@@ -84,12 +84,13 @@ func TestFilterRanking(t *testing.T) {
 	if strings.Join(ranked, ",") != "checkout,xcheck" {
 		t.Errorf("pattern che: want the prefix match first, got %v", ranked)
 	}
-	// Smart case: an upper-case letter makes the match case-sensitive.
-	if got := values(Filter(items, "", "Ch", nil)); strings.Join(got, ",") != "Changelog" {
-		t.Errorf("pattern Ch: got %v", got)
+	// Case is ignored ("REA" finds "react/", as in Fig); a match in the
+	// typed case ranks first.
+	if got := values(Filter(items, "", "Ch", nil)); len(got) != 3 || got[0] != "Changelog" {
+		t.Errorf("pattern Ch: want Changelog first of 3, got %v", got)
 	}
-	if got := values(Filter(items, "", "ch", nil)); len(got) != 3 {
-		t.Errorf("pattern ch is case-insensitive: got %v", got)
+	if got := values(Filter(items, "", "CH", nil)); len(got) != 3 {
+		t.Errorf("pattern CH must ignore case: got %v", got)
 	}
 	// Values carry the fetched prefix; the pattern applies to the rest.
 	files := []Item{{Value: "src/main.go", Display: "main.go"}, {Value: "src/match.go", Display: "match.go"}}

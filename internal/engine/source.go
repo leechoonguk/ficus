@@ -99,6 +99,10 @@ type Config struct {
 	// HelpFlags reads flags from `cmd --help` for commands carapace does
 	// not know.
 	HelpFlags bool
+	// Bridges is CARAPACE_BRIDGES for the backend: the shells (comma-
+	// separated) whose completions a command installed carapace may use
+	// when it has no completer of its own. Empty turns that off.
+	Bridges string
 }
 
 // ErrLoading reports that candidates are being fetched in the background
@@ -118,12 +122,15 @@ func cacheKey(cfg Config, c *Context) (key []string, ttl time.Duration, extra []
 		return []string{"commands", os.Getenv("PATH"), string(extra)}, time.Minute, extra, true
 	}
 	wd, _ := os.Getwd()
-	key = append([]string{"args", string(c.Shell), wd, c.FetchPrefix}, c.Words[:len(c.Words)-1]...)
+	key = append([]string{"args", string(c.Shell), cfg.Bridges, wd, c.FetchPrefix}, c.Words[:len(c.Words)-1]...)
 	return key, cfg.TTL, nil, true
 }
 
 // Fetch returns the unfiltered candidates for c.
 func Fetch(cfg Config, c *Context) (*Candidates, error) {
+	if c.Kind == KindArgument && isSelf(c.Words[0]) {
+		return selfCandidates(c), nil
+	}
 	key, ttl, extra, ok := cacheKey(cfg, c)
 	if !ok {
 		if c.Kind == KindVariable {
@@ -203,6 +210,7 @@ func carapaceCandidates(cfg Config, c *Context) (*Candidates, error) {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, cfg.Carapace, args...)
 	cmd.Stdin = nil
+	cmd.Env = append(os.Environ(), "CARAPACE_BRIDGES="+cfg.Bridges)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

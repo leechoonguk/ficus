@@ -4,7 +4,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/junegunn/fzf/src/algo"
@@ -16,27 +15,23 @@ type Match struct {
 	Item
 	// Positions are rune offsets into Item.Label() to highlight.
 	Positions []int
-	prefix    bool // starts with the pattern (case-folded unless it has capitals)
+	prefix    bool // starts with the pattern, ignoring case
 	exact     bool // starts with the pattern exactly as typed
 	score     int
 }
 
 var initAlgo = sync.OnceFunc(func() { algo.Init("default") })
 
-// Filter ranks items against pattern with fzf's FuzzyMatchV2 (smart case,
-// diacritics-insensitive). Prefix matches rank first, as a completion menu
-// should list what the user is literally typing before fuzzy hits, and among
-// them those in the typed case (-l before -L), then recently accepted ones
-// (recent maps values to their most-recent-first rank, see LoadRecent). An
-// empty pattern keeps the backend's order.
+// Filter ranks items against pattern with fzf's FuzzyMatchV2, ignoring case
+// (as Fig does: "REA" finds "react/") and diacritics. Prefix matches rank
+// first, as a completion menu should list what the user is literally typing
+// before fuzzy hits, and among them those in the typed case (-L before -l
+// for "L"), then recently accepted ones (recent maps values to their
+// most-recent-first rank, see LoadRecent). An empty pattern keeps the
+// backend's order.
 func Filter(items []Item, fetchPrefix, pattern string, recent map[string]int) []Match {
 	initAlgo()
-	caseSensitive := strings.IndexFunc(pattern, unicode.IsUpper) >= 0
-	query := pattern
-	if !caseSensitive {
-		query = strings.ToLower(pattern)
-	}
-	pat := algo.NormalizeRunes([]rune(query))
+	pat := algo.NormalizeRunes([]rune(strings.ToLower(pattern)))
 	slab := util.MakeSlab(100*1024, 2048)
 
 	matches := make([]Match, 0, len(items))
@@ -47,14 +42,14 @@ func Filter(items []Item, fetchPrefix, pattern string, recent map[string]int) []
 		m := Match{Item: it, prefix: true}
 		if len(pat) > 0 {
 			chars := util.ToChars([]byte(text))
-			res, _ := algo.FuzzyMatchV2(caseSensitive, true, true, &chars, pat, false, slab)
+			res, _ := algo.FuzzyMatchV2(false, true, true, &chars, pat, false, slab)
 			if res.Start < 0 {
 				continue
 			}
 			m.score = res.Score
-			m.prefix = hasPrefixFold(text, pattern, caseSensitive)
+			m.prefix = strings.HasPrefix(strings.ToLower(text), strings.ToLower(pattern))
 			m.exact = strings.HasPrefix(text, pattern)
-			m.Positions = highlight(it.Label(), pat, caseSensitive, slab)
+			m.Positions = highlight(it.Label(), pat, slab)
 		}
 		matches = append(matches, m)
 	}
@@ -115,18 +110,11 @@ func CommonPrefix(matches []Match, fetchPrefix, pattern string) (string, bool) {
 	return lcp, true
 }
 
-func hasPrefixFold(s, prefix string, caseSensitive bool) bool {
-	if caseSensitive {
-		return strings.HasPrefix(s, prefix)
-	}
-	return strings.HasPrefix(strings.ToLower(s), strings.ToLower(prefix))
-}
-
 // highlight returns the matched rune positions within the label, which may
 // differ from the matched text (e.g. a basename display of a path value).
-func highlight(label string, pat []rune, caseSensitive bool, slab *util.Slab) []int {
+func highlight(label string, pat []rune, slab *util.Slab) []int {
 	chars := util.ToChars([]byte(label))
-	res, pos := algo.FuzzyMatchV2(caseSensitive, true, true, &chars, pat, true, slab)
+	res, pos := algo.FuzzyMatchV2(false, true, true, &chars, pat, true, slab)
 	if res.Start < 0 || pos == nil {
 		return nil
 	}

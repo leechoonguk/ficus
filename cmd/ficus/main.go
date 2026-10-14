@@ -421,6 +421,7 @@ func engineConfig(s config.Settings) engine.Config {
 		Timeout:       3 * time.Second,
 		ExtraCommands: os.Getenv("FICUS_EXTRA_COMMANDS"),
 		HelpFlags:     s.HelpFlags,
+		Bridges:       strings.Join(s.Bridges, ","),
 	}
 	if cfg.CacheDir == "" {
 		if dir, err := os.UserCacheDir(); err == nil {

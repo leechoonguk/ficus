@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -19,21 +20,22 @@ import (
 // Settings are the user-facing options. The shell integrations receive the
 // ones they need from `ficus init`; the engine loads them on every call.
 type Settings struct {
-	Color         string // auto | always | never
-	Theme         string // ansi | dark | light | auto
-	ASCII         string // auto | on | off
-	AmbiWidth     int    // 1 | 2: columns of East Asian ambiguous characters
-	Icons         string // none | ascii | nerd
-	Rows          int    // item rows shown at once
-	Details       int    // lines of the selected item's description pane
-	Groups        bool   // group items by tag under headers
-	MinInput      int    // characters typed in command position before the menu opens
-	AutoPopup     bool   // open the menu while typing (false: Tab opens it)
-	Preselect     bool   // highlight the first item (or the run row, engine.RunAsTyped): Enter does what is highlighted
-	UpArrow       string // history | menu: what Up does before Down picked an item
-	Ghost         bool   // inline suggestion after the cursor
-	Recent        bool   // rank recently accepted items first
-	HelpFlags     bool   // read flags from `cmd --help` for commands carapace does not know
+	Color         string   // auto | always | never
+	Theme         string   // ansi | dark | light | auto
+	ASCII         string   // auto | on | off
+	AmbiWidth     int      // 1 | 2: columns of East Asian ambiguous characters
+	Icons         string   // none | ascii | nerd
+	Rows          int      // item rows shown at once
+	Details       int      // lines of the selected item's description pane
+	Groups        bool     // group items by tag under headers
+	MinInput      int      // characters typed in command position before the menu opens
+	AutoPopup     bool     // open the menu while typing (false: Tab opens it)
+	Preselect     bool     // highlight the first item (or the run row, engine.RunAsTyped): Enter does what is highlighted
+	UpArrow       string   // history | menu: what Up does before Down picked an item
+	Ghost         bool     // inline suggestion after the cursor
+	Recent        bool     // rank recently accepted items first
+	HelpFlags     bool     // read flags from `cmd --help` for commands carapace does not know
+	Bridges       []string // shells whose own completions carapace may use (CARAPACE_BRIDGES)
 	Budget        time.Duration
 	TTL           time.Duration
 	PickerPopup   bool
@@ -42,6 +44,18 @@ type Settings struct {
 	// Keys maps each action in Actions to a key name ("" = unbound).
 	Keys map[string]string
 }
+
+// defaultBridges: on Windows tools seldom install zsh, fish or bash
+// completions, so the bridges are off there unless configured.
+func defaultBridges() []string {
+	if runtime.GOOS == "windows" {
+		return []string{}
+	}
+	return []string{"zsh", "fish", "bash"}
+}
+
+// BridgeShells are the shells carapace can borrow completions from.
+var BridgeShells = []string{"zsh", "fish", "bash", "inshellisense"}
 
 // Actions are the rebindable actions, in display order.
 var Actions = []string{"accept", "pick", "dismiss", "next_group", "prev_group"}
@@ -64,6 +78,7 @@ func Defaults() Settings {
 		Ghost:         false,
 		Recent:        true,
 		HelpFlags:     true,
+		Bridges:       defaultBridges(),
 		Budget:        60 * time.Millisecond,
 		TTL:           10 * time.Second,
 		PickerPopup:   false,
@@ -112,6 +127,7 @@ type file struct {
 	Ghost         any       `toml:"ghost"`
 	Recent        any       `toml:"recent"`
 	HelpFlags     any       `toml:"help_flags"`
+	Bridges       any       `toml:"bridges"`
 	Budget        any       `toml:"budget"`
 	TTL           any       `toml:"ttl"`
 	PickerPopup   any       `toml:"picker_popup"`
@@ -280,6 +296,46 @@ func Load() (Settings, string, error) {
 			report("disable_for: want a list of strings")
 		}
 	}
+	// bridges: carapace falls back to the completions a command installed
+	// for these shells. An empty list (FICUS_BRIDGES=none) turns it off.
+	bridges := func(origin string, names []string) {
+		for _, n := range names {
+			if !slices.Contains(BridgeShells, n) {
+				report("%s: %q is not one of %s", origin, n, strings.Join(BridgeShells, ", "))
+				return
+			}
+		}
+		s.Bridges = names
+	}
+	if f.Bridges != nil {
+		list, ok := f.Bridges.([]any)
+		names := []string{}
+		for _, v := range list {
+			name, isStr := v.(string)
+			if !isStr {
+				ok = false
+				break
+			}
+			names = append(names, name)
+		}
+		if ok {
+			bridges("bridges", names)
+		} else {
+			report("bridges: want a list of strings")
+		}
+	}
+	if v, ok := os.LookupEnv("FICUS_BRIDGES"); ok && v != "" {
+		names := []string{}
+		if v != "none" {
+			for name := range strings.SplitSeq(v, ",") {
+				if name = strings.TrimSpace(name); name != "" {
+					names = append(names, name)
+				}
+			}
+		}
+		bridges("FICUS_BRIDGES", names)
+	}
+
 	if v, ok := os.LookupEnv("FICUS_DISABLE_FOR"); ok && v != "" {
 		s.DisableFor = nil
 		for name := range strings.SplitSeq(v, ",") {

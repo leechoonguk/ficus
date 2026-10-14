@@ -158,6 +158,7 @@ Tab, Ctrl-Space, Ctrl-G and Alt-Down/Up can be changed in the `[keys]` settings.
 
 When the menu opens **the first row is highlighted** (a `>` at the start of the row), and the highlight is exactly what Enter does:
 
+- Matching ignores case, as in Fig: `cd REA` finds `rea/` and `react/`, and completing replaces the typed word. Candidates that start with the word come first, those in the typed case before the others (`ls -L` lists `-L` before `-l`), then fuzzy matches.
 - While a word is being typed and candidates continue it (`git ch`, `rm notes`), the first item is highlighted and Enter completes with it. After completing, the menu stays closed until the next key, so a second Enter runs the line.
 - When what is typed is already the line to run, a **`↪ run` row** on top is highlighted instead and Enter runs the line as typed, as Fig's "auto-execute" suggestion does. That is the case when the word is empty (after a space, after `/` as in `cd ../`, a lone `-` as in `cat -`), when it is `.` or `..`, when it already names a candidate (`git log`, `cat notes.txt`, `cd src`), and when no candidate starts with it (only fuzzy matches). Down goes to the first item below it.
 
@@ -197,6 +198,7 @@ up_arrow = "history"  # history | menu: what Up does before Down chose an item
 ghost = false         # dimmed preview of the first (chosen) item after the cursor (zsh, PowerShell)
 recent = true         # rank recently accepted items first
 help_flags = true     # read flags from `command --help` for commands carapace does not know
+bridges = ["zsh", "fish", "bash"]  # use completions programs installed for these shells ([] = off; Windows default: off)
 color = "auto"        # auto | always | never
 theme = "ansi"        # ansi | dark | light | auto
 ascii = "auto"        # auto | on | off: ..., - instead of …, ─
@@ -220,6 +222,10 @@ The environment variables for `[keys]` are `FICUS_KEY_` + upper case, e.g. `FICU
 **Colors and characters**: `theme = "ansi"` (the default) uses only the terminal palette's 8 base colors, so it follows light and dark terminal themes. `dark`/`light` use fixed 256-color palettes and fall back to `ansi` on terminals without 256 colors. `auto` asks the terminal for its background color when the shell starts (OSC 11, at most 150 ms) and falls back to `COLORFGBG`. A non-empty `NO_COLOR` (or `color = "never"`, or a terminal without colors) uses bold, underline and reverse video only. The highlighted row is marked with `>` regardless of color. A non-UTF-8 locale, `TERM=linux` or `ambiwidth = 2` switches to ASCII characters. With `TERM=dumb` (shells inside editors, …) the integration is off entirely.
 
 **`--help` flags**: for a command carapace has no definition for (e.g. `omp`), typing a word that starts with `-` runs `command --help` once, reads the flags and their descriptions, and caches them until the executable changes (at most a day). A flag that takes a value (`--model=<value>`) is inserted as `--model ` (with a space) and the value is typed next. Scripts (files starting with `#!`), which may ignore `--help` and simply run, and commands given by path (`./deploy.sh`) are never run. Subcommand flags (`omp agents --…`) are not read. To turn it off: `help_flags = false`.
+
+**Completions programs ship**: for a command carapace has no definition for, carapace's shell bridges use the completion the program installed for zsh, fish or bash (most CLIs install one, e.g. through Homebrew: `codex`, `hf`, `git-lfs`). Only shells that have a completion for the command are run, without the user's startup files (zsh runs with `--no-rcs`), and the result is cached like any other. A shell that is not installed is skipped. `bridges` picks the shells in order (`FICUS_BRIDGES=zsh,bash`, `FICUS_BRIDGES=none`); off by default on Windows. When no bridge knows the command either, the `--help` flags above apply.
+
+**ficus itself**: `ficus ` completes its own subcommands, their flags and values (`ficus setup --shells zsh,bash`, `ficus init pwsh`) from a table in `internal/engine/self.go`, also when run by path (`~/.local/bin/ficus`).
 
 **`ficus doctor`**: checks and prints the settings file, the terminal (TERM, colors, terminfo, background), the locale, tmux `escape-time`, VS Code and JetBrains terminal conflicts, the backend and cache, and the key settings.
 
