@@ -14,9 +14,11 @@ export function resolveProjectRoot(): string {
   return existsSync(join(cwd, "go.mod")) ? cwd : join(cwd, "..");
 }
 
-/** Directories a tree walk skips — not ours (submodules) or generated. */
+/** Directories a tree walk skips — not ours (submodules, the Go toolchain
+ * scripts/go.sh downloads into .cache/) or generated. */
 export const WALK_EXCLUDES: Record<string, true> = {
   ".git": true,
+  ".cache": true,
   "third_party": true,
   "bin": true,
   "dist": true,
