@@ -652,13 +652,15 @@ func TestParseHelp(t *testing.T) {
 }
 
 // --help is never run for a script: it may ignore the flag and do its work.
+// On Windows the script is a batch file, which PATH lookup finds as well.
 func TestHelpSkipsScripts(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("shell script")
-	}
 	dir := t.TempDir()
 	ran := filepath.Join(dir, "ran")
-	must(t, os.WriteFile(filepath.Join(dir, "deploy"), []byte("#!/bin/sh\ntouch "+ran+"\necho '  --force  Do it'\n"), 0o755))
+	if runtime.GOOS == "windows" {
+		must(t, os.WriteFile(filepath.Join(dir, "deploy.cmd"), []byte("@echo off\r\ntype nul > \""+ran+"\"\r\necho   --force  Do it\r\n"), 0o755))
+	} else {
+		must(t, os.WriteFile(filepath.Join(dir, "deploy"), []byte("#!/bin/sh\ntouch "+ran+"\necho '  --force  Do it'\n"), 0o755))
+	}
 	t.Setenv("PATH", dir)
 	c, err := helpCandidates(Config{CacheDir: filepath.Join(dir, "cache"), Timeout: 5 * time.Second}, "deploy")
 	if err != nil || len(c.Items) != 0 {

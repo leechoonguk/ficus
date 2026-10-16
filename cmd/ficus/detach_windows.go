@@ -7,8 +7,11 @@ import (
 	"syscall"
 )
 
-// detach runs cmd without a console and outside the shell's process group.
+// detach runs cmd outside the shell's process group, on a console of its own
+// that has no window. Its children inherit that console: a process without
+// one (DETACHED_PROCESS) would make every console program it starts
+// (ficus-carapace, `cmd --help`) open a new, visible console window.
 func detach(cmd *exec.Cmd) {
-	const detachedProcess = 0x00000008
-	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: detachedProcess | syscall.CREATE_NEW_PROCESS_GROUP}
+	const createNoWindow = 0x08000000
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNoWindow | syscall.CREATE_NEW_PROCESS_GROUP}
 }

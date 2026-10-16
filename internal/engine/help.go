@@ -11,9 +11,10 @@ import (
 
 // helpCandidates lists the flags a command documents in its --help output,
 // for commands carapace has no completer for (zsh's _gnu_generic does the
-// same). Only programs found in PATH are asked, and never scripts: a
-// script may ignore --help and do its work instead. The result is cached
-// for as long as the executable does not change.
+// same). Only programs found in PATH are asked, and only those helpRunnable
+// allows: never scripts, which may ignore --help and do their work instead,
+// nor Windows GUI programs. The result is cached for as long as the
+// executable does not change.
 func helpCandidates(cfg Config, name string) (*Candidates, error) {
 	if strings.ContainsAny(name, `/\`) {
 		return &Candidates{}, nil
@@ -23,7 +24,7 @@ func helpCandidates(cfg Config, name string) (*Candidates, error) {
 		return &Candidates{}, nil
 	}
 	st, err := os.Stat(path)
-	if err != nil || isScript(path) {
+	if err != nil || !helpRunnable(path) {
 		return &Candidates{}, nil
 	}
 	key := []string{"help", path, fmt.Sprint(st.ModTime().UnixNano(), st.Size())}
@@ -36,18 +37,6 @@ func helpCandidates(cfg Config, name string) (*Candidates, error) {
 		out, _ := cmd.CombinedOutput() // many print help to stderr, exit non-zero
 		return &Candidates{Items: parseHelp(string(out))}, nil
 	})
-}
-
-// isScript reports a file starting with "#!".
-func isScript(path string) bool {
-	f, err := os.Open(path)
-	if err != nil {
-		return true
-	}
-	defer f.Close()
-	head := make([]byte, 2)
-	n, _ := f.Read(head)
-	return n == 2 && string(head) == "#!"
 }
 
 var (
